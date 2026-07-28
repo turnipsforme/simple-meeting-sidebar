@@ -1,9 +1,11 @@
 import { execFile } from "node:child_process";
-import { access } from "node:fs/promises";
+import { access, chmod } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { FileSystemAdapter, Plugin } from "obsidian";
+import calendarHelperBase64 from "calendar-helper-binary";
+import { installExecutableHelper } from "./helper-installer";
 import type { CalendarEvent } from "./models";
 import { makeEventKey, stripEmojis } from "./utils";
 
@@ -133,8 +135,25 @@ export class CalendarService {
 
     try {
       await access(helperPath, fsConstants.X_OK);
+      return helperPath;
     } catch {
-      throw new Error("The bundled Apple Calendar helper is missing or is not executable. Copy the complete plugin folder.");
+      // ZIP extraction and some plugin installers can preserve the file while
+      // dropping its executable bit. Repair that before writing a new copy.
+      try {
+        await chmod(helperPath, 0o755);
+        await access(helperPath, fsConstants.X_OK);
+        return helperPath;
+      } catch {
+        // The standard Obsidian release consists of main.js, manifest.json,
+        // and styles.css, so install the helper embedded in main.js.
+      }
+    }
+
+    try {
+      await installExecutableHelper(helperPath, calendarHelperBase64);
+      await access(helperPath, fsConstants.X_OK);
+    } catch {
+      throw new Error("The bundled Apple Calendar helper could not be installed. Reinstall the plugin and check that its folder is writable.");
     }
     return helperPath;
   }

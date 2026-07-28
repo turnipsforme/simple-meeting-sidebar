@@ -9,7 +9,7 @@
     "build:plugin": "tsc --noEmit && node esbuild.config.mjs production",
     "build:helper": "bash scripts/build-helper.sh",
     "package:release": "bash scripts/package-release.sh",
-    "build": "npm run build:plugin && npm run build:helper && npm run package:release",
+    "build": "npm run build:helper && npm run build:plugin && npm run package:release",
     "test:ts": "node --import tsx --test tests/*.test.ts",
     "test:swift": "bin/calendar-helper --self-test",
     "test": "npm run test:ts && npm run test:swift",

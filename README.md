@@ -4,7 +4,7 @@ A macOS-only Obsidian plugin that reads today's events from Apple Calendar, show
 
 ## Install
 
-For the smallest copy, use the ready-made `release/wrens-calendar-meetings` folder. Copy that folder to:
+Download the versioned `calendar-meetings-*.zip` file from the latest GitHub release, extract it, and copy the included `wrens-calendar-meetings` folder to:
 
 ```text
 <your vault>/.obsidian/plugins/wrens-calendar-meetings
@@ -18,6 +18,8 @@ main.js
 manifest.json
 styles.css
 ```
+
+Standard Obsidian installers that download only `main.js`, `manifest.json`, and `styles.css` are also supported. The signed universal Apple Calendar helper is embedded in `main.js` and is installed into `bin/calendar-helper` with executable permissions the first time it is needed.
 
 Restart Obsidian, enable **Calendar Meetings** under Community plugins, and allow Calendar access when macOS asks. The helper only reads events; it never writes to Apple Calendar.
 

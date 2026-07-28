@@ -1,0 +1,27 @@
+{
+  "name": "calendar-meetings",
+  "version": "0.2.0",
+  "private": true,
+  "description": "A macOS-only Obsidian sidebar for today's Apple Calendar meetings.",
+  "type": "module",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build:plugin": "tsc --noEmit && node esbuild.config.mjs production",
+    "build:helper": "bash scripts/build-helper.sh",
+    "package:release": "bash scripts/package-release.sh",
+    "build": "npm run build:plugin && npm run build:helper && npm run package:release",
+    "test:ts": "node --import tsx --test tests/*.test.ts",
+    "test:swift": "bin/calendar-helper --self-test",
+    "test": "npm run test:ts && npm run test:swift",
+    "check": "npm run build && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "builtin-modules": "^4.0.0",
+    "esbuild": "^0.25.0",
+    "obsidian": "^1.8.7",
+    "tslib": "^2.8.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

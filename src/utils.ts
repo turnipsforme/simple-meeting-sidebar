@@ -148,7 +148,8 @@ export function insertMeetingLinkIntoDailyNote(content: string, markdownLink: st
     const parentMatch = meetingParentPattern.exec(lines[parentIndex] ?? "");
     const parentIndent = indentationWidth(parentMatch?.[1] ?? "");
     let blockEnd = parentIndex + 1;
-    let childIndent = `${parentMatch?.[1] ?? ""}\t`;
+    let childIndent = `${parentMatch?.[1] ?? ""}  `;
+    let foundChildIndent = false;
 
     while (blockEnd < lines.length) {
       const line = lines[blockEnd] ?? "";
@@ -158,7 +159,10 @@ export function insertMeetingLinkIntoDailyNote(content: string, markdownLink: st
       }
       const leading = /^\s*/.exec(line)?.[0] ?? "";
       if (indentationWidth(leading) <= parentIndent) break;
-      if (childIndent.endsWith("\t")) childIndent = leading;
+      if (!foundChildIndent) {
+        childIndent = leading;
+        foundChildIndent = true;
+      }
       blockEnd += 1;
     }
 
@@ -168,10 +172,11 @@ export function insertMeetingLinkIntoDailyNote(content: string, markdownLink: st
     lines.splice(blockEnd, 0, `${childIndent}- ${markdownLink}`);
   } else {
     const firstHeading = lines.findIndex((line) => HEADING_RE.test(line));
+    const meetingBlock = ["- Meeting", `  - ${markdownLink}`];
     if (firstHeading >= 0) {
-      lines.splice(firstHeading + 1, 0, `- ${markdownLink}`);
+      lines.splice(firstHeading + 1, 0, ...meetingBlock);
     } else {
-      lines.unshift(`- ${markdownLink}`);
+      lines.unshift(...meetingBlock);
     }
   }
 

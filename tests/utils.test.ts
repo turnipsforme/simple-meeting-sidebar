@@ -35,17 +35,22 @@ test("task insertion keeps calendar titles on a single markdown line", () => {
 });
 
 test("meeting link nests under an existing Meeting bullet", () => {
-  const input = "# Today\n- Meeting\n\t- [[Meetings/Old|Old]]\n### Tasks";
+  const input = "# Today\n- Meeting\n  - [[Meetings/Old|Old]]\n### Tasks";
   const result = insertMeetingLinkIntoDailyNote(input, "[[Meetings/New|New]]");
   assert.equal(
     result.content,
-    "# Today\n- Meeting\n\t- [[Meetings/Old|Old]]\n\t- [[Meetings/New|New]]\n### Tasks",
+    "# Today\n- Meeting\n  - [[Meetings/Old|Old]]\n  - [[Meetings/New|New]]\n### Tasks",
   );
 });
 
-test("meeting link goes directly below the first heading when no Meeting bullet exists", () => {
+test("meeting link creates a nested Meeting bullet below the first heading", () => {
   const result = insertMeetingLinkIntoDailyNote("# Today\n### Tasks", "[[Meetings/New|New]]");
-  assert.equal(result.content, "# Today\n- [[Meetings/New|New]]\n### Tasks");
+  assert.equal(result.content, "# Today\n- Meeting\n  - [[Meetings/New|New]]\n### Tasks");
+});
+
+test("meeting link creates a nested Meeting bullet at the top when there is no heading", () => {
+  const result = insertMeetingLinkIntoDailyNote("A note", "[[Meetings/New|New]]");
+  assert.equal(result.content, "- Meeting\n  - [[Meetings/New|New]]\nA note");
 });
 
 test("meeting numbering continues from the highest existing suffix", () => {

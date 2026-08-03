@@ -65,7 +65,7 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
     });
     this.addCommand({
       id: "show-todays-meetings",
-      name: "Show today's meetings",
+      name: "Open meetings sidebar",
       callback: () => void this.activateView().catch((error: unknown) => {
         console.error("Calendar Meetings: could not open the sidebar", error);
       }),

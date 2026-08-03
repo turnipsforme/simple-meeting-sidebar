@@ -1,5 +1,9 @@
 import { moment, normalizePath, type App, TFile, TFolder } from "obsidian";
-import { insertMeetingLinkIntoDailyNote, insertTaskIntoDailyNote } from "./utils";
+import {
+  formatDailyNoteLinkLabel,
+  insertMeetingLinkIntoDailyNote,
+  insertTaskIntoDailyNote,
+} from "./utils";
 
 interface DailyNoteSettings {
   format: string;
@@ -76,6 +80,17 @@ export class DailyNoteService {
       return update.content;
     });
     return changed;
+  }
+
+  getLinkLabel(file: TFile): string {
+    const settings = this.getSettings();
+    const folder = normalizePath(settings.folder.trim());
+    const withoutExtension = file.path.replace(/\.md$/i, "");
+    const dateText = folder && withoutExtension.startsWith(`${folder}/`)
+      ? withoutExtension.slice(folder.length + 1)
+      : file.basename;
+    const parsed = moment(dateText, settings.format, true);
+    return formatDailyNoteLinkLabel((parsed.isValid() ? parsed : moment()).toDate());
   }
 
   private getSettings(): DailyNoteSettings {

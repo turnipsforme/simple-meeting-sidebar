@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   findLongestPersonKey,
+  formatDailyNoteLinkLabel,
   insertMeetingLinkIntoDailyNote,
   insertTaskIntoDailyNote,
   nextMeetingBasename,
@@ -54,8 +55,15 @@ test("meeting link creates a nested Meeting bullet at the top when there is no h
 });
 
 test("meeting numbering continues from the highest existing suffix", () => {
-  assert.equal(nextMeetingBasename("Mentorship", ["Mentorship", "Mentorship 2", "Mentorship 7"]), "Mentorship 8");
+  assert.equal(
+    nextMeetingBasename("Mentorship", ["Mentorship", "Mentorship 2", "Mentorship 7", "Mentorship 12 - project update"]),
+    "Mentorship 13",
+  );
   assert.equal(nextMeetingBasename("Mentorship", ["Other note"]), "Mentorship");
+});
+
+test("daily-note links use a readable date label", () => {
+  assert.equal(formatDailyNoteLinkLabel(new Date(2026, 7, 3)), "Mon, Aug 3 2026");
 });
 
 test("longest person lookup matches aliases without scanning every person", () => {

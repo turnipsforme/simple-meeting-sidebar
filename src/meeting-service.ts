@@ -39,8 +39,13 @@ export class MeetingService {
       const personLink = person
         ? this.app.fileManager.generateMarkdownLink(person.file, notePath, undefined, person.displayText)
         : "";
-      const todayLink = this.app.fileManager.generateMarkdownLink(dailyNote, notePath, undefined, "Today");
-      const content = this.renderTemplate(noteName, personLink, todayLink);
+      const dailyNoteLink = this.app.fileManager.generateMarkdownLink(
+        dailyNote,
+        notePath,
+        undefined,
+        this.dailyNotes.getLinkLabel(dailyNote),
+      );
+      const content = this.renderTemplate(noteName, personLink, dailyNoteLink);
 
       try {
         meetingFile = await this.app.vault.create(notePath, content);
@@ -70,8 +75,8 @@ export class MeetingService {
     return warning ? { file: meetingFile, warning } : { file: meetingFile };
   }
 
-  private renderTemplate(noteName: string, personLink: string, todayLink: string): string {
-    return `# ${noteName}\n\n#Meeting with ${personLink} on ${todayLink}\n\n- \n`;
+  private renderTemplate(noteName: string, personLink: string, dailyNoteLink: string): string {
+    return `# ${noteName}\n\n#Meeting with ${personLink} on ${dailyNoteLink}\n\n- \n`;
   }
 
   private getExistingMeetingBasenames(folder: string): string[] {

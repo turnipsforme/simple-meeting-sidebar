@@ -28,10 +28,12 @@ Restart Obsidian, enable **Calendar Meetings** under Community plugins, and allo
 - Hover an event and click `•` to add `- [ ] Event title` under the detected Tasks heading in today's daily note.
 - Click `••` to create and open a note in `Meetings`.
 - Run **Calendar Meetings: Refresh today's meetings** for an immediate refresh.
-- Run **Calendar Meetings: Show today's meetings** to reveal the sidebar.
+- Run **Calendar Meetings: Open meetings sidebar** to reveal the sidebar.
 - Run **Calendar Meetings: Today's calendar events** to refresh Apple Calendar and open a floating window containing both today's and yesterday's events, with the same task and meeting-note buttons.
 
 After either action succeeds, that event is hidden from the sidebar for the rest of the refresh cycle. A manual refresh restores handled events to the list, while preserving which task or meeting note was already created.
+
+New meeting notes link back to the daily note with a readable date label such as `Mon, Aug 3 2026`. Meeting-note numbering also recognizes an existing suffix followed by a dash, so `Meeting 12 - follow-up` makes the next note `Meeting 13`.
 
 The default schedule is once per day at 08:00 local time. The plugin checks regularly while Obsidian is open, retries later after a failed refresh, and catches up at startup if Obsidian was closed when a refresh became due. The setting can be changed to manual or another Readwise-style interval.
 

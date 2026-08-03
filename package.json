@@ -1,6 +1,6 @@
 {
   "name": "calendar-meetings",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "A macOS-only Obsidian sidebar for today's Apple Calendar meetings.",
   "type": "module",

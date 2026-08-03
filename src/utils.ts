@@ -2,12 +2,18 @@ import type { TextUpdateResult } from "./models";
 
 const HEADING_RE = /^(#{1,6})[ \t]+(.+?)\s*$/;
 const EMOJI_RE = /(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:[\uFE0E\uFE0F])?(?:\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:[\uFE0E\uFE0F])?(?:\p{Emoji_Modifier})?)*)/gu;
+const SHORT_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 export function localDateKey(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+export function formatDailyNoteLinkLabel(date: Date): string {
+  return `${SHORT_WEEKDAYS[date.getDay()]}, ${SHORT_MONTHS[date.getMonth()]} ${date.getDate()} ${date.getFullYear()}`;
 }
 
 export function normalizeVaultFolder(value: string, fallback: string): string {
@@ -41,7 +47,7 @@ export function sanitizeMeetingTitle(value: string): string {
 
 export function nextMeetingBasename(base: string, existingBasenames: readonly string[]): string {
   const escaped = escapeRegExp(base);
-  const pattern = new RegExp(`^${escaped}(?: (\\d+))?$`, "i");
+  const pattern = new RegExp(`^${escaped}(?: (\\d+)(?:\\s*-\\s*.*)?)?$`, "i");
   let maximum = 0;
 
   for (const basename of existingBasenames) {

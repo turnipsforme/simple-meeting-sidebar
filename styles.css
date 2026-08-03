@@ -2,6 +2,32 @@
   padding: var(--size-4-3);
 }
 
+.wcm-calendar-modal {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.wcm-calendar-modal .modal-content {
+  max-height: min(70vh, 680px);
+  overflow-y: auto;
+}
+
+.wcm-modal-section + .wcm-modal-section {
+  margin-top: var(--size-4-5);
+}
+
+.wcm-modal-heading {
+  margin: 0 0 var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+}
+
+.wcm-refreshing {
+  margin-bottom: var(--size-4-3);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
 .wcm-view-controls {
   display: flex;
   align-items: center;
@@ -50,7 +76,8 @@
 }
 
 .wcm-event:hover .wcm-event-actions,
-.wcm-event:focus-within .wcm-event-actions {
+.wcm-event:focus-within .wcm-event-actions,
+.wcm-calendar-modal .wcm-event-actions {
   opacity: 1;
 }
 

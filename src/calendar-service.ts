@@ -27,11 +27,12 @@ interface HelperEvent {
 export class CalendarService {
   constructor(private readonly plugin: Plugin) {}
 
-  async fetchToday(): Promise<CalendarEvent[]> {
+  async fetchTodayAndYesterday(): Promise<CalendarEvent[]> {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - 1);
     const end = new Date(start);
-    end.setDate(end.getDate() + 1);
+    end.setDate(end.getDate() + 2);
 
     const stdout = await this.runHelper([start.toISOString(), end.toISOString()]);
 

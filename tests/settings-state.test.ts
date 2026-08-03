@@ -62,6 +62,7 @@ test("cached events are validated, bounded, and assigned a trusted key", () => {
         location: "  Dublin  ",
         taskAdded: true,
         meetingNotePath: " Meetings/Planning.md ",
+        sidebarHidden: true,
       },
       { title: "Bad date", start: "nope", end: base.end },
       null,
@@ -76,6 +77,7 @@ test("cached events are validated, bounded, and assigned a trusted key", () => {
     location: "Dublin",
     taskAdded: true,
     meetingNotePath: "Meetings/Planning.md",
+    sidebarHidden: true,
   });
   assert.equal(loaded.cachedDate, "2026-07-25");
   assert.equal(loaded.lastSuccessfulRefreshAt, 1234);

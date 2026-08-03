@@ -14,6 +14,7 @@ export interface CalendarEvent {
   location?: string;
   taskAdded?: boolean;
   meetingNotePath?: string;
+  sidebarHidden?: boolean;
 }
 
 export interface StoredPluginSettings {

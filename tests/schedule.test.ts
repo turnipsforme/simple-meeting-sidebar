@@ -1,62 +1,68 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { automaticRefreshIsDue, computeNextRefreshDelay } from "../src/schedule";
+import { automaticRefreshIsDue } from "../src/schedule";
 
 const MINUTE = 60_000;
 
-test("manual schedule owns no timer", () => {
-  assert.equal(computeNextRefreshDelay({
-    schedule: "manual",
-    dailyRefreshTime: "08:00",
-    cachedDate: "",
-    lastSuccessfulRefreshAt: 0,
-    lastAttemptAt: 0,
-    now: new Date(2026, 6, 25, 7, 0),
-  }), null);
+test("manual refresh never becomes automatically due", () => {
+  assert.equal(automaticRefreshIsDue(
+    "manual",
+    "",
+    0,
+    "08:00",
+    new Date(2026, 6, 25, 12, 0),
+  ), false);
 });
 
-test("daily waits for this morning when today has not been attempted", () => {
+test("daily refresh waits for today's configured time after yesterday succeeded", () => {
   const now = new Date(2026, 6, 25, 7, 30);
-  assert.equal(computeNextRefreshDelay({
-    schedule: "daily",
-    dailyRefreshTime: "08:00",
-    cachedDate: "2026-07-24",
-    lastSuccessfulRefreshAt: 0,
-    lastAttemptAt: 0,
+  const yesterdayRefresh = new Date(2026, 6, 24, 8, 5).getTime();
+  assert.equal(automaticRefreshIsDue(
+    "daily",
+    "2026-07-24",
+    yesterdayRefresh,
+    "08:00",
     now,
-  }), 30 * MINUTE);
+  ), false);
 });
 
-test("daily schedules tomorrow after a same-day catch-up, even before 08:00", () => {
+test("daily refresh becomes due after today's configured time", () => {
+  const now = new Date(2026, 6, 25, 8, 1);
+  const yesterdayRefresh = new Date(2026, 6, 24, 8, 5).getTime();
+  assert.equal(automaticRefreshIsDue(
+    "daily",
+    "2026-07-24",
+    yesterdayRefresh,
+    "08:00",
+    now,
+  ), true);
+});
+
+test("daily refresh catches up before today's time when the previous scheduled run was missed", () => {
   const now = new Date(2026, 6, 25, 7, 30);
-  const tomorrow = new Date(2026, 6, 26, 8, 0);
-  assert.equal(computeNextRefreshDelay({
-    schedule: "daily",
-    dailyRefreshTime: "08:00",
-    cachedDate: "2026-07-25",
-    lastSuccessfulRefreshAt: now.getTime(),
-    lastAttemptAt: now.getTime(),
+  const staleRefresh = new Date(2026, 6, 23, 8, 5).getTime();
+  assert.equal(automaticRefreshIsDue(
+    "daily",
+    "2026-07-23",
+    staleRefresh,
+    "08:00",
     now,
-  }), tomorrow.getTime() - now.getTime());
+  ), true);
 });
 
-test("interval schedule keeps its cadence from the last completed refresh", () => {
-  const now = new Date(2026, 6, 25, 10, 30);
-  const lastRefresh = new Date(2026, 6, 25, 10, 0).getTime();
-  assert.equal(computeNextRefreshDelay({
-    schedule: "60",
-    dailyRefreshTime: "08:00",
-    cachedDate: "2026-07-25",
-    lastSuccessfulRefreshAt: lastRefresh,
-    lastAttemptAt: lastRefresh,
-    now,
-  }), 30 * MINUTE);
-});
-
-test("due checks catch up once per new day or elapsed interval", () => {
+test("a successful refresh today prevents a second automatic daily refresh", () => {
   const now = new Date(2026, 6, 25, 12, 0);
-  assert.equal(automaticRefreshIsDue("daily", "2026-07-24", 0, now), true);
-  assert.equal(automaticRefreshIsDue("daily", "2026-07-25", 0, now), false);
-  assert.equal(automaticRefreshIsDue("60", "", now.getTime() - 59 * MINUTE, now), false);
-  assert.equal(automaticRefreshIsDue("60", "", now.getTime() - 60 * MINUTE, now), true);
+  assert.equal(automaticRefreshIsDue(
+    "daily",
+    "2026-07-25",
+    now.getTime() - MINUTE,
+    "08:00",
+    now,
+  ), false);
+});
+
+test("interval schedules catch up when their elapsed time has passed", () => {
+  const now = new Date(2026, 6, 25, 12, 0);
+  assert.equal(automaticRefreshIsDue("60", "", now.getTime() - 59 * MINUTE, "08:00", now), false);
+  assert.equal(automaticRefreshIsDue("60", "", now.getTime() - 60 * MINUTE, "08:00", now), true);
 });

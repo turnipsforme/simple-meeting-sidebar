@@ -70,7 +70,7 @@ export class CalendarMeetingsSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Calendar refresh schedule")
-      .setDesc("Like Readwise, automatic refreshes only run while Obsidian is open. Manual never runs by itself.")
+      .setDesc("Checks regularly while Obsidian is open and catches up after a missed refresh. Manual never runs by itself.")
       .addDropdown((dropdown) => dropdown
         .addOption("manual", "Manual")
         .addOption("60", "Every hour")
@@ -100,7 +100,7 @@ export class CalendarMeetingsSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Refresh now")
-      .setDesc("Runs the same refresh as the “Refresh today's meetings” command.")
+      .setDesc("Refreshes yesterday and today, and restores handled events to the sidebar.")
       .addButton((button) => button
         .setButtonText("Refresh")
         .onClick(async () => {

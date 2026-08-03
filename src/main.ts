@@ -1,22 +1,30 @@
 import { Notice, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
 import { CalendarService } from "./calendar-service";
 import { DailyNoteService } from "./daily-note-service";
-import { filterCalendarEvents } from "./event-filter";
+import {
+  eventsStartingOnLocalDate,
+  filterCalendarEvents,
+  mergeRefreshedEventState,
+} from "./event-filter";
 import { MeetingService } from "./meeting-service";
 import {
   type CalendarEvent,
   type StoredPluginSettings,
 } from "./models";
 import { PeopleIndex } from "./people-index";
-import { automaticRefreshIsDue, computeNextRefreshDelay } from "./schedule";
+import { automaticRefreshIsDue } from "./schedule";
 import { CalendarMeetingsSettingTab } from "./settings";
 import { loadPluginSettings } from "./settings-state";
 import { localDateKey } from "./utils";
 import {
   CALENDAR_MEETINGS_VIEW,
+  CalendarEventsModal,
   CalendarMeetingsView,
+  type CalendarEventGroups,
   type CalendarMeetingsController,
 } from "./view";
+
+const AUTOMATIC_REFRESH_POLL_MS = 5 * 60_000;
 
 export default class CalendarMeetingsPlugin extends Plugin implements CalendarMeetingsController {
   declare settings: StoredPluginSettings;
@@ -26,7 +34,6 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
   private meetingService!: MeetingService;
   private scheduleTimer: number | null = null;
   private refreshPromise: Promise<void> | null = null;
-  private lastAttemptAt = 0;
   private lastRefreshError = "";
 
   async onload(): Promise<void> {
@@ -63,6 +70,11 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
         console.error("Calendar Meetings: could not open the sidebar", error);
       }),
     });
+    this.addCommand({
+      id: "todays-calendar-events",
+      name: "Today's calendar events",
+      callback: () => this.showCalendarEvents(),
+    });
 
     this.registerEvent(this.app.metadataCache.on("changed", (file) => {
       if (this.peopleIndex.isPeoplePath(file.path)) this.peopleIndex.invalidate();
@@ -86,7 +98,7 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
         this.renderViews();
         return;
       }
-      this.configureSchedule(true);
+      this.configureSchedule();
     });
   }
 
@@ -100,12 +112,18 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
   }
 
   getTodayEvents(): CalendarEvent[] {
-    if (this.settings.cachedDate !== localDateKey(new Date())) return [];
-    return filterCalendarEvents(
-      this.settings.cachedEvents,
-      this.settings.selectedCalendars,
-      this.settings.onlyGoogleMeetEvents,
-    );
+    return this.getEventsForDate(localDateKey(new Date()))
+      .filter((event) => event.sidebarHidden !== true);
+  }
+
+  getTodayAndYesterdayEvents(): CalendarEventGroups {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return {
+      today: this.getEventsForDate(localDateKey(today)),
+      yesterday: this.getEventsForDate(localDateKey(yesterday)),
+    };
   }
 
   async getAvailableCalendars(): Promise<string[]> {
@@ -145,13 +163,12 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
     } finally {
       if (this.refreshPromise === operation) this.refreshPromise = null;
       this.renderViews();
-      this.scheduleNext();
     }
   }
 
   async addEventAsTask(event: CalendarEvent): Promise<void> {
     const changed = await this.meetingService.addTask(event);
-    await this.updateEventState(event.key, { taskAdded: true });
+    await this.updateEventState(event.key, { taskAdded: true, sidebarHidden: true });
     new Notice(changed ? `Added “${event.title}” to today's tasks.` : `“${event.title}” is already in today's tasks.`);
   }
 
@@ -159,24 +176,28 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
     if (event.meetingNotePath) {
       const existing = this.app.vault.getAbstractFileByPath(event.meetingNotePath);
       if (existing instanceof TFile) {
+        await this.updateEventState(event.key, { sidebarHidden: true });
         await this.app.workspace.getLeaf(false).openFile(existing);
         return;
       }
     }
 
     const result = await this.meetingService.createMeeting(event);
-    await this.updateEventState(event.key, { meetingNotePath: result.file.path });
+    await this.updateEventState(event.key, {
+      meetingNotePath: result.file.path,
+      sidebarHidden: true,
+    });
     if (result.warning) new Notice(`Calendar Meetings: ${result.warning}`);
   }
 
-  configureSchedule(catchUp = false): void {
+  configureSchedule(): void {
     this.clearSchedule();
     if (this.settings.refreshSchedule === "manual" || process.platform !== "darwin") return;
-    if (catchUp && this.refreshIsDue()) {
-      void this.refreshToday(false).catch(() => undefined);
-      return;
-    }
-    this.scheduleNext();
+    this.scheduleTimer = window.setInterval(
+      () => this.checkAutomaticRefresh(),
+      AUTOMATIC_REFRESH_POLL_MS,
+    );
+    this.checkAutomaticRefresh();
   }
 
   async saveSettings(): Promise<void> {
@@ -188,23 +209,14 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
   }
 
   private async performRefresh(manual: boolean): Promise<void> {
-    this.lastAttemptAt = Date.now();
     this.lastRefreshError = "";
     try {
-      const freshEvents = await this.calendarService.fetchToday();
-      const previousState = new Map(
-        this.settings.cachedDate === localDateKey(new Date())
-          ? this.settings.cachedEvents.map((event) => [event.key, event] as const)
-          : [],
+      const freshEvents = await this.calendarService.fetchTodayAndYesterday();
+      this.settings.cachedEvents = mergeRefreshedEventState(
+        freshEvents,
+        this.settings.cachedEvents,
+        !manual,
       );
-      this.settings.cachedEvents = freshEvents.map((event) => {
-        const previous = previousState.get(event.key);
-        return {
-          ...event,
-          ...(previous?.taskAdded ? { taskAdded: true } : {}),
-          ...(previous?.meetingNotePath ? { meetingNotePath: previous.meetingNotePath } : {}),
-        };
-      });
       this.settings.cachedDate = localDateKey(new Date());
       this.settings.lastSuccessfulRefreshAt = Date.now();
       await this.saveSettings();
@@ -223,7 +235,7 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
 
   private async updateEventState(
     eventKey: string,
-    patch: Pick<CalendarEvent, "taskAdded"> | Pick<CalendarEvent, "meetingNotePath">,
+    patch: Partial<Pick<CalendarEvent, "taskAdded" | "meetingNotePath" | "sidebarHidden">>,
   ): Promise<void> {
     const event = this.settings.cachedEvents.find((candidate) => candidate.key === eventKey);
     if (!event) return;
@@ -237,31 +249,42 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
       this.settings.refreshSchedule,
       this.settings.cachedDate,
       this.settings.lastSuccessfulRefreshAt,
+      this.settings.dailyRefreshTime,
       new Date(),
     );
   }
 
-  private scheduleNext(): void {
-    this.clearSchedule();
-    if (process.platform !== "darwin") return;
-    const delay = computeNextRefreshDelay({
-      schedule: this.settings.refreshSchedule,
-      dailyRefreshTime: this.settings.dailyRefreshTime,
-      cachedDate: this.settings.cachedDate,
-      lastSuccessfulRefreshAt: this.settings.lastSuccessfulRefreshAt,
-      lastAttemptAt: this.lastAttemptAt,
-      now: new Date(),
-    });
-    if (delay === null) return;
-    this.scheduleTimer = window.setTimeout(() => {
-      this.scheduleTimer = null;
+  private checkAutomaticRefresh(): void {
+    if (!this.isRefreshing() && this.refreshIsDue()) {
       void this.refreshToday(false).catch(() => undefined);
-    }, delay);
+    }
   }
 
   private clearSchedule(): void {
-    if (this.scheduleTimer !== null) window.clearTimeout(this.scheduleTimer);
+    if (this.scheduleTimer !== null) window.clearInterval(this.scheduleTimer);
     this.scheduleTimer = null;
+  }
+
+  private getEventsForDate(dateKey: string): CalendarEvent[] {
+    if (this.settings.cachedDate !== localDateKey(new Date())) return [];
+    return eventsStartingOnLocalDate(
+      filterCalendarEvents(
+        this.settings.cachedEvents,
+        this.settings.selectedCalendars,
+        this.settings.onlyGoogleMeetEvents,
+      ),
+      dateKey,
+    );
+  }
+
+  private showCalendarEvents(): void {
+    const modal = new CalendarEventsModal(this.app, this);
+    modal.open();
+    const refresh = this.refreshToday(true);
+    modal.render();
+    void refresh
+      .catch(() => undefined)
+      .finally(() => modal.render());
   }
 
   private async activateView(): Promise<void> {

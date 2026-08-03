@@ -1,6 +1,6 @@
 # Calendar Meetings
 
-A macOS-only Obsidian plugin that reads today's events from Apple Calendar, shows them in the right sidebar, and turns an event into either a daily-note task or a meeting note with one click.
+A macOS-only Obsidian plugin that reads events from Apple Calendar, shows today's events in the right sidebar, and turns an event into either a daily-note task or a meeting note with one click.
 
 ## Install
 
@@ -29,8 +29,11 @@ Restart Obsidian, enable **Calendar Meetings** under Community plugins, and allo
 - Click `••` to create and open a note in `Meetings`.
 - Run **Calendar Meetings: Refresh today's meetings** for an immediate refresh.
 - Run **Calendar Meetings: Show today's meetings** to reveal the sidebar.
+- Run **Calendar Meetings: Today's calendar events** to refresh Apple Calendar and open a floating window containing both today's and yesterday's events, with the same task and meeting-note buttons.
 
-The default schedule is once per day at 08:00 local time. If Obsidian was closed then, the first opening on a new day performs one catch-up refresh. The setting can be changed to manual or another Readwise-style interval.
+After either action succeeds, that event is hidden from the sidebar for the rest of the refresh cycle. A manual refresh restores handled events to the list, while preserving which task or meeting note was already created.
+
+The default schedule is once per day at 08:00 local time. The plugin checks regularly while Obsidian is open, retries later after a failed refresh, and catches up at startup if Obsidian was closed when a refresh became due. The setting can be changed to manual or another Readwise-style interval.
 
 In the plugin settings, each Apple calendar can be included or excluded. You can also limit the sidebar to events that contain a `meet.google.com` link in their URL, location, or notes. Event titles are shown without emoji or a time prefix.
 

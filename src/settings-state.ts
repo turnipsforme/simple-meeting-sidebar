@@ -76,6 +76,7 @@ function readCachedEvent(value: unknown): CalendarEvent | null {
     ...(location ? { location } : {}),
     ...(value.taskAdded === true ? { taskAdded: true } : {}),
     ...(meetingNotePath ? { meetingNotePath } : {}),
+    ...(value.sidebarHidden === true ? { sidebarHidden: true } : {}),
   };
 }
 

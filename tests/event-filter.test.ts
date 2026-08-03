@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterCalendarEvents } from "../src/event-filter";
+import {
+  eventsStartingOnLocalDate,
+  filterCalendarEvents,
+  mergeRefreshedEventState,
+} from "../src/event-filter";
 import type { CalendarEvent } from "../src/models";
 
 const events: CalendarEvent[] = [
@@ -23,6 +27,32 @@ test("Google Meet filtering composes with the selected calendars", () => {
     filterCalendarEvents(events, ["Work"], true).map((event) => event.id),
     ["work-meet"],
   );
+});
+
+test("events can be split into local calendar days", () => {
+  const yesterday = { ...events[0]!, start: "2026-07-27T09:00:00.000Z" };
+  assert.deepEqual(
+    eventsStartingOnLocalDate([yesterday, ...events], "2026-07-28").map((event) => event.id),
+    events.map((event) => event.id),
+  );
+  assert.deepEqual(eventsStartingOnLocalDate([yesterday, ...events], "2026-07-27"), [yesterday]);
+});
+
+test("refreshes preserve action state but only automatic refreshes preserve sidebar hiding", () => {
+  const fresh = events[0]!;
+  const previous = {
+    ...fresh,
+    taskAdded: true,
+    meetingNotePath: "Meetings/work-meet.md",
+    sidebarHidden: true,
+  };
+
+  assert.deepEqual(mergeRefreshedEventState([fresh], [previous], true), [previous]);
+  assert.deepEqual(mergeRefreshedEventState([fresh], [previous], false), [{
+    ...fresh,
+    taskAdded: true,
+    meetingNotePath: "Meetings/work-meet.md",
+  }]);
 });
 
 function makeEvent(id: string, calendar: string, hasGoogleMeet: boolean): CalendarEvent {

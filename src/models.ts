@@ -18,6 +18,7 @@ export interface CalendarEvent {
 }
 
 export interface StoredPluginSettings {
+  sidebarInitialized: boolean;
   meetingsFolder: string;
   peopleFolder: string;
   considerAliases: boolean;
@@ -31,6 +32,7 @@ export interface StoredPluginSettings {
 }
 
 export const DEFAULT_SETTINGS: StoredPluginSettings = {
+  sidebarInitialized: true,
   meetingsFolder: "Meetings",
   peopleFolder: "People",
   considerAliases: true,

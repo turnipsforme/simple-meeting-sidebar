@@ -87,3 +87,13 @@ test("an explicitly empty calendar selection is preserved", () => {
   const loaded = loadPluginSettings({ selectedCalendars: [] });
   assert.deepEqual(loaded.selectedCalendars, []);
 });
+
+test("existing settings do not trigger sidebar setup after upgrading", () => {
+  const loaded = loadPluginSettings({ meetingsFolder: "Meetings" });
+  assert.equal(loaded.sidebarInitialized, true);
+});
+
+test("an incomplete sidebar setup can be retried", () => {
+  const loaded = loadPluginSettings({ sidebarInitialized: false });
+  assert.equal(loaded.sidebarInitialized, false);
+});

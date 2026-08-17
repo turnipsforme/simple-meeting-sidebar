@@ -10,6 +10,9 @@ export function loadPluginSettings(value: unknown): StoredPluginSettings {
   const raw = isRecord(value) ? value : {};
 
   return {
+    sidebarInitialized: typeof raw.sidebarInitialized === "boolean"
+      ? raw.sidebarInitialized
+      : DEFAULT_SETTINGS.sidebarInitialized,
     meetingsFolder: normalizeVaultFolder(readString(raw.meetingsFolder), DEFAULT_SETTINGS.meetingsFolder),
     peopleFolder: normalizeVaultFolder(readString(raw.peopleFolder), DEFAULT_SETTINGS.peopleFolder),
     considerAliases: typeof raw.considerAliases === "boolean"

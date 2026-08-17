@@ -90,9 +90,7 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
     this.register(() => this.clearSchedule());
 
     this.app.workspace.onLayoutReady(() => {
-      void this.activateView().catch((error: unknown) => {
-        console.error("Calendar Meetings: could not open the sidebar", error);
-      });
+      if (!this.settings.sidebarInitialized) void this.initializeSidebar();
       if (process.platform !== "darwin") {
         this.lastRefreshError = "Calendar Meetings is available on macOS only.";
         this.renderViews();
@@ -205,7 +203,19 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
   }
 
   private async loadSettings(): Promise<void> {
-    this.settings = loadPluginSettings(await this.loadData());
+    const storedData: unknown = await this.loadData();
+    this.settings = loadPluginSettings(storedData);
+    if (storedData == null) this.settings.sidebarInitialized = false;
+  }
+
+  private async initializeSidebar(): Promise<void> {
+    try {
+      await this.activateView();
+      this.settings.sidebarInitialized = true;
+      await this.saveSettings();
+    } catch (error: unknown) {
+      console.error("Calendar Meetings: could not initialize the sidebar", error);
+    }
   }
 
   private async performRefresh(manual: boolean): Promise<void> {

@@ -7,6 +7,19 @@
   display: none !important;
 }
 
+/* Remove every divider around this view so only its contents and the pill are visible. */
+.workspace-tabs:has(.workspace-leaf-content[data-type="wrens-calendar-meetings-view"]) .workspace-tab-header-container {
+  display: none !important;
+}
+
+.workspace-leaf:has(.workspace-leaf-content[data-type="wrens-calendar-meetings-view"]),
+.workspace-leaf-content[data-type="wrens-calendar-meetings-view"],
+.workspace-tabs:has(.workspace-leaf-content[data-type="wrens-calendar-meetings-view"]) {
+  border-top: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+}
+
 .workspace-leaf-content[data-type="wrens-calendar-meetings-view"] {
   position: relative;
 }
@@ -21,7 +34,7 @@
   height: 10px;
   border-radius: 999px;
   background: var(--background-modifier-border-hover);
-  cursor: ew-resize;
+  cursor: ns-resize;
   opacity: 0.55;
   transition: opacity 120ms ease-out, background 120ms ease-out;
 }

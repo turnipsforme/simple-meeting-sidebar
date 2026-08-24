@@ -19,6 +19,9 @@ export function loadPluginSettings(value: unknown): StoredPluginSettings {
       ? raw.considerAliases
       : DEFAULT_SETTINGS.considerAliases,
     ignoredPeople: typeof raw.ignoredPeople === "string" ? raw.ignoredPeople.slice(0, 2_000) : "",
+    sidebarPillOffset: typeof raw.sidebarPillOffset === "number" && Number.isFinite(raw.sidebarPillOffset)
+      ? Math.min(800, Math.max(0, raw.sidebarPillOffset))
+      : DEFAULT_SETTINGS.sidebarPillOffset,
     selectedCalendars: readSelectedCalendars(raw.selectedCalendars),
     onlyGoogleMeetEvents: typeof raw.onlyGoogleMeetEvents === "boolean"
       ? raw.onlyGoogleMeetEvents

@@ -314,6 +314,15 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
       .finally(() => modal.render());
   }
 
+  getPillOffset(): number {
+    return Math.min(800, Math.max(0, this.settings.sidebarPillOffset));
+  }
+
+  async setPillOffset(value: number): Promise<void> {
+    this.settings.sidebarPillOffset = Math.min(800, Math.max(0, value));
+    await this.saveSettings();
+  }
+
   private async runOnNextEvent(
     label: string,
     action: (event: CalendarEvent) => Promise<void>,

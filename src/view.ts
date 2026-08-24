@@ -15,6 +15,8 @@ export interface CalendarMeetingsController {
   getLastError(): string;
   isRefreshing(): boolean;
   toggleSidebar(): Promise<void>;
+  getPillOffset(): number;
+  setPillOffset(value: number): Promise<void>;
   addEventAsTask(event: CalendarEvent): Promise<void>;
   createEventMeeting(event: CalendarEvent): Promise<void>;
   app: App;
@@ -46,49 +48,57 @@ export class CalendarMeetingsView extends ItemView {
     this.render();
   }
 
-  /** Minimalist pill that replaces the tab icon/separator: click toggles the sidebar, drag resizes it. */
+  /** Minimalist pill that replaces the tab icon/separator: click toggles the sidebar, drag moves it up/down. */
   private renderPill(): void {
     const existing = this.containerEl.querySelector(".wcm-pill");
     const pill = existing instanceof HTMLElement
       ? existing
       : this.containerEl.createDiv({ cls: "wcm-pill" });
-    pill.setAttribute("aria-label", "Drag to resize the sidebar · Click to hide");
-    pill.setAttr("title", "Calendar Meetings — drag to move, click to hide");
+    pill.setAttribute("aria-label", "Drag to move up/down · Click to hide");
+    pill.setAttr("title", "Calendar Meetings — drag to reposition, click to hide");
 
-    let startX = 0;
-    let startWidth = 0;
+    let startY = 0;
+    let startOffset = 0;
     let dragging = false;
     let moved = false;
 
-    const splitEl = () => (this.contentEl.closest(".workspace")?.querySelector(".workspace-split.mod-right-split") ?? null) as HTMLElement | null;
+    this.applyPillOffset(pill);
 
     pill.onmousedown = (event: MouseEvent) => {
       if (event.button !== 0) return;
       dragging = true;
       moved = false;
-      startX = event.clientX;
-      startWidth = splitEl()?.offsetWidth ?? 300;
+      startY = event.clientY;
+      startOffset = this.controller.getPillOffset();
       event.preventDefault();
     };
 
     this.registerDomEvent(window, "mousemove", (event: MouseEvent) => {
       if (!dragging) return;
-      const delta = event.clientX - startX;
+      const delta = event.clientY - startY;
       if (Math.abs(delta) < 4 && !moved) return;
       moved = true;
-      const split = splitEl();
-      if (!split) return;
-      const width = Math.min(800, Math.max(160, startWidth - delta));
-      split.style.width = `${width}px`;
-      const workspaceSplit = this.app.workspace.rightSplit as unknown as { width?: number } | undefined;
-      if (workspaceSplit) workspaceSplit.width = width;
+      const offset = Math.min(800, Math.max(0, startOffset + delta));
+      this.contentEl.style.marginTop = `${offset}px`;
+      pill.style.top = `${offset + 4}px`;
     });
 
     this.registerDomEvent(window, "mouseup", () => {
       if (!dragging) return;
       dragging = false;
-      if (!moved) void this.controller.toggleSidebar().catch(() => undefined);
+      if (!moved) {
+        void this.controller.toggleSidebar().catch(() => undefined);
+        return;
+      }
+      const offset = Math.min(800, Math.max(0, Number.parseInt(this.contentEl.style.marginTop || "0", 10)));
+      void this.controller.setPillOffset(offset).catch(() => undefined);
     });
+  }
+
+  private applyPillOffset(pill: HTMLElement): void {
+    const offset = Math.min(800, Math.max(0, this.controller.getPillOffset()));
+    this.contentEl.style.marginTop = `${offset}px`;
+    pill.style.top = `${offset + 4}px`;
   }
 
   render(): void {

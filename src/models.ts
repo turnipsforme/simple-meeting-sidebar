@@ -24,6 +24,7 @@ export interface StoredPluginSettings {
   peopleFolder: string;
   considerAliases: boolean;
   ignoredPeople: string;
+  sidebarPillOffset: number;
   selectedCalendars: string[] | null;
   onlyGoogleMeetEvents: boolean;
   refreshSchedule: RefreshSchedule;
@@ -39,6 +40,7 @@ export const DEFAULT_SETTINGS: StoredPluginSettings = {
   peopleFolder: "People",
   considerAliases: true,
   ignoredPeople: "",
+  sidebarPillOffset: 0,
   selectedCalendars: null,
   onlyGoogleMeetEvents: false,
   refreshSchedule: "daily",

@@ -12,9 +12,23 @@
   display: none !important;
 }
 
+.workspace-tabs:has(.workspace-leaf-content[data-type="wrens-calendar-meetings-view"]),
 .workspace-leaf:has(.workspace-leaf-content[data-type="wrens-calendar-meetings-view"]),
-.workspace-leaf-content[data-type="wrens-calendar-meetings-view"],
-.workspace-tabs:has(.workspace-leaf-content[data-type="wrens-calendar-meetings-view"]) {
+.workspace-leaf-content[data-type="wrens-calendar-meetings-view"] {
+  border-top: none !important;
+  border-bottom: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  box-shadow: none !important;
+}
+
+/* Kill the divider drawn by the neighboring pane directly above ours. */
+.workspace-split.mod-right-split .workspace-tabs:has(~ .workspace-tabs .workspace-leaf-content[data-type="wrens-calendar-meetings-view"]),
+.workspace-split.mod-right-split .workspace-leaf:has(~ .workspace-leaf .workspace-leaf-content[data-type="wrens-calendar-meetings-view"]),
+.workspace-split.mod-right-split .workspace-tabs:has(.workspace-leaf-content[data-type="wrens-calendar-meetings-view"]) .workspace-leaf,
+.workspace-split.mod-right-split .workspace-tabs:has(.workspace-leaf-content[data-type="wrens-calendar-meetings-view"])
+  ~ .workspace-split
+  .workspace-leaf {
   border-top: none !important;
   border-bottom: none !important;
   box-shadow: none !important;
@@ -26,16 +40,16 @@
 
 .wcm-pill {
   position: absolute;
-  top: 6px;
+  top: 3px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  width: 36px;
-  height: 10px;
+  width: 16px;
+  height: 4px;
   border-radius: 999px;
   background: var(--background-modifier-border-hover);
   cursor: ns-resize;
-  opacity: 0.55;
+  opacity: 0.45;
   transition: opacity 120ms ease-out, background 120ms ease-out;
 }
 

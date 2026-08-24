@@ -80,7 +80,7 @@ export class CalendarMeetingsView extends ItemView {
       moved = true;
       const offset = Math.min(800, Math.max(0, startOffset + delta));
       this.contentEl.style.marginTop = `${offset}px`;
-      pill.style.top = `${offset + 4}px`;
+      pill.style.top = `${offset + 2}px`;
     });
 
     this.registerDomEvent(window, "mouseup", () => {
@@ -98,7 +98,7 @@ export class CalendarMeetingsView extends ItemView {
   private applyPillOffset(pill: HTMLElement): void {
     const offset = Math.min(800, Math.max(0, this.controller.getPillOffset()));
     this.contentEl.style.marginTop = `${offset}px`;
-    pill.style.top = `${offset + 4}px`;
+    pill.style.top = `${offset + 2}px`;
   }
 
   render(): void {

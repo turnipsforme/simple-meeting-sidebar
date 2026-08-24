@@ -43,6 +43,7 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
       this.app,
       () => this.settings.peopleFolder,
       () => this.settings.considerAliases,
+      () => this.settings.ignoredPeople,
     );
     this.calendarService = new CalendarService(this);
     this.meetingService = new MeetingService(
@@ -65,10 +66,26 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
     });
     this.addCommand({
       id: "show-todays-meetings",
-      name: "Open meetings sidebar",
-      callback: () => void this.activateView().catch((error: unknown) => {
-        console.error("Calendar Meetings: could not open the sidebar", error);
+      name: "Toggle meetings sidebar",
+      callback: () => void this.toggleSidebar().catch((error: unknown) => {
+        console.error("Calendar Meetings: could not toggle the sidebar", error);
       }),
+    });
+    this.addCommand({
+      id: "add-next-meeting-as-task",
+      name: "Add next meeting as task",
+      callback: () => this.runOnNextEvent(
+        "task",
+        (event) => this.addEventAsTask(event),
+      ),
+    });
+    this.addCommand({
+      id: "create-next-meeting-note",
+      name: "Create next meeting note",
+      callback: () => this.runOnNextEvent(
+        "meeting note",
+        (event) => this.createEventMeeting(event),
+      ),
     });
     this.addCommand({
       id: "todays-calendar-events",
@@ -297,6 +314,23 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
       .finally(() => modal.render());
   }
 
+  private async runOnNextEvent(
+    label: string,
+    action: (event: CalendarEvent) => Promise<void>,
+  ): Promise<void> {
+    const event = this.getTodayEvents().find((candidate) => candidate.taskAdded !== true);
+    if (!event) {
+      new Notice(`Calendar Meetings: no upcoming meeting to add as a ${label}.`);
+      return;
+    }
+    try {
+      await action(event);
+    } catch (error: unknown) {
+      console.error(`Calendar Meetings: could not add the ${label}`, error);
+      new Notice(`Calendar Meetings: could not add the ${label}.`);
+    }
+  }
+
   private async activateView(): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(CALENDAR_MEETINGS_VIEW)[0];
     if (existing) {
@@ -307,6 +341,24 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
     if (!leaf) return;
     await leaf.setViewState({ type: CALENDAR_MEETINGS_VIEW, active: true });
     await this.app.workspace.revealLeaf(leaf);
+  }
+
+  async toggleSidebar(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(CALENDAR_MEETINGS_VIEW)[0];
+    if (!existing) {
+      await this.activateView();
+      return;
+    }
+    const split = this.app.workspace.rightSplit as unknown as
+      | { collapsed?: boolean; collapse?: () => void; expand?: () => void; width?: number }
+      | undefined;
+    const visible = (existing.view.containerEl as HTMLElement).isShown();
+    if (visible && split?.collapsed !== true) {
+      split?.collapse?.();
+    } else {
+      split?.expand?.();
+      await this.app.workspace.revealLeaf(existing);
+    }
   }
 
   renderViews(): void {

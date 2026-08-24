@@ -60,6 +60,33 @@ export function nextMeetingBasename(base: string, existingBasenames: readonly st
   return maximum === 0 ? base : `${base} ${maximum + 1}`;
 }
 
+/** Parse the comma-separated ignore list into normalized full-name keys (capitalization agnostic). */
+export function parseIgnoredPeople(value: string): Set<string> {
+  const keys = new Set<string>();
+  for (const entry of value.split(",")) {
+    const key = normalizePersonText(entry);
+    if (key) keys.add(key);
+  }
+  return keys;
+}
+
+/** Drop guests whose name matches an ignore-list entry, even if only their first name was given. */
+export function filterIgnoredGuests(guests: readonly string[], ignoredRaw: string): string[] {
+  if (guests.length === 0) return [];
+  const ignored = parseIgnoredPeople(ignoredRaw);
+  if (ignored.size === 0) return [...guests];
+
+  const ignoredTokens = new Set<string>();
+  for (const key of ignored) for (const token of key.split(" ")) ignoredTokens.add(token);
+
+  return guests.filter((guest) => {
+    const normalized = normalizePersonText(guest);
+    if (!normalized) return false;
+    if (ignored.has(normalized)) return false;
+    return !normalized.split(" ").some((token) => ignoredTokens.has(token));
+  });
+}
+
 export function normalizePersonText(value: string): string {
   return (value.normalize("NFKD").replace(/\p{M}+/gu, "").match(/[\p{L}\p{N}]+/gu) ?? [])
     .join(" ")

@@ -68,6 +68,18 @@ export class CalendarMeetingsSettingTab extends PluginSettingTab {
           await this.calendarPlugin.saveSettings();
         }));
 
+    const ignoredPeopleSetting = new Setting(containerEl)
+      .setName("Ignored people")
+      .setDesc("People who should never be linked in meeting notes, matched against event guests by first or full name. Comma separated; capitalization doesn't matter.")
+      .addText((text) => text
+        .setPlaceholder("e.g. Mish, Wren, Dana Smith")
+        .setValue(this.calendarPlugin.settings.ignoredPeople)
+        .onChange(async (value) => {
+          this.calendarPlugin.settings.ignoredPeople = value;
+          await this.calendarPlugin.saveSettings();
+        }));
+    ignoredPeopleSetting.settingEl.addClass("wcm-people-setting");
+
     new Setting(containerEl)
       .setName("Calendar refresh schedule")
       .setDesc("Checks regularly while Obsidian is open and catches up after a missed refresh. Manual never runs by itself.")
@@ -113,6 +125,23 @@ export class CalendarMeetingsSettingTab extends PluginSettingTab {
             button.setDisabled(false);
           }
         }));
+
+    containerEl.createEl("h3", { text: "Advanced URI integration" });
+    containerEl.createDiv({
+      cls: "setting-item-description wcm-uri-help",
+      text: "If the Advanced URI plugin is installed you can trigger these commands from links, shortcuts, or other apps using: obsidian://adv-uri?vault=YourVault&commandid=wrens-calendar-meetings%3Arefresh-todays-meetings — replace commandid with any of the exposed commands below (the : must be encoded as %3A).",
+    });
+    const uriList = containerEl.createDiv({ cls: "wcm-uri-list" });
+    for (const command of [
+      ["Refresh today's meetings", "refresh-todays-meetings"],
+      ["Add next meeting as task", "add-next-meeting-as-task"],
+      ["Create next meeting note", "create-next-meeting-note"],
+    ] as const) {
+      uriList.createDiv({
+        cls: "wcm-uri-row",
+        text: `${command[0]} → wrens-calendar-meetings:${command[1]}`,
+      });
+    }
   }
 
   private async displayCalendarChoices(container: HTMLElement): Promise<void> {

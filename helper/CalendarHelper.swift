@@ -10,6 +10,7 @@ private struct CalendarEventOutput: Codable {
     let calendar: String
     let hasGoogleMeet: Bool
     let location: String?
+    let guests: [String]?
 }
 
 private enum HelperError: LocalizedError {
@@ -77,7 +78,8 @@ private struct CalendarHelper {
                         allDay: event.isAllDay,
                         calendar: event.calendar?.title ?? "",
                         hasGoogleMeet: hasGoogleMeetLink(event),
-                        location: event.location
+                        location: event.location,
+                        guests: guestNames(event)
                     )
                 }
                 .sorted { left, right in
@@ -134,6 +136,15 @@ private struct CalendarHelper {
         return standard.date(from: value)
     }
 
+    private static func guestNames(_ event: EKEvent) -> [String]? {
+        let names = (event.attendees ?? []).compactMap { participant -> String? in
+            let name = participant.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !name.isEmpty { return name }
+            return nil
+        }
+        return names.isEmpty ? nil : names
+    }
+
     private static func hasGoogleMeetLink(_ event: EKEvent) -> Bool {
         [event.url?.absoluteString, event.location, event.notes]
             .compactMap { $0?.lowercased() }
@@ -164,7 +175,8 @@ private struct CalendarHelper {
                 allDay: false,
                 calendar: "Test",
                 hasGoogleMeet: true,
-                location: nil
+                location: nil,
+                guests: nil
             )
         ]
         let encoder = JSONEncoder()

@@ -2,6 +2,36 @@
   padding: var(--size-4-3);
 }
 
+/* Hide the sidebar tab icon and its separator for this view; the in-view pill replaces them. */
+.workspace-tab-header[data-type="wrens-calendar-meetings-view"] {
+  display: none !important;
+}
+
+.workspace-leaf-content[data-type="wrens-calendar-meetings-view"] {
+  position: relative;
+}
+
+.wcm-pill {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  width: 36px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--background-modifier-border-hover);
+  cursor: ew-resize;
+  opacity: 0.55;
+  transition: opacity 120ms ease-out, background 120ms ease-out;
+}
+
+.wcm-pill:hover {
+  opacity: 1;
+  background: var(--interactive-accent);
+}
+
+
 .wcm-calendar-modal {
   width: min(560px, calc(100vw - 32px));
 }
@@ -135,4 +165,25 @@
   .wcm-action.is-loading svg {
     animation: none;
   }
+}
+
+.wcm-uri-help {
+  margin: 0 0 var(--size-4-2);
+}
+
+.wcm-uri-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--size-4-3);
+}
+
+.wcm-uri-row {
+  padding: 6px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
 }

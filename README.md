@@ -23,14 +23,15 @@ Standard Obsidian installers that download only `main.js`, `manifest.json`, and 
 
 Restart Obsidian, enable **Calendar Meetings** under Community plugins, and allow Calendar access when macOS asks. The helper only reads events; it never writes to Apple Calendar.
 
-On a new install, the plugin adds its view to the right sidebar once. If you close it, it stays closed across later Obsidian launches. Run **Calendar Meetings: Open meetings sidebar** whenever you want it back.
+On a new install, the plugin adds its view to the right sidebar once. If you close it, it stays closed across later Obsidian launches. Run **Calendar Meetings: Toggle meetings sidebar** whenever you want it back. The sidebar tab icon and separator are intentionally hidden; a small pill at the top of the sidebar replaces them — drag it left/right to resize the sidebar and click it to hide it again.
 
 ## Use
 
 - Hover an event and click `•` to add `- [ ] Event title` under the detected Tasks heading in today's daily note.
 - Click `••` to create and open a note in `Meetings`.
 - Run **Calendar Meetings: Refresh today's meetings** for an immediate refresh.
-- Run **Calendar Meetings: Open meetings sidebar** to reveal the sidebar.
+- Run **Calendar Meetings: Toggle meetings sidebar** to show or hide the sidebar.
+- Run **Calendar Meetings: Add next meeting as task** or **Create next meeting note** to handle the next unhandled event from anywhere (great for Shortcuts and URIs).
 - Run **Calendar Meetings: Today's calendar events** to refresh Apple Calendar and open a floating window containing both today's and yesterday's events, with the same task and meeting-note buttons.
 
 After either action succeeds, that event is hidden from the sidebar for the rest of the refresh cycle. A manual refresh restores handled events to the list, while preserving which task or meeting note was already created.
@@ -43,7 +44,19 @@ In the plugin settings, each Apple calendar can be included or excluded. You can
 
 ## Person matching
 
-Only Markdown notes inside `People` with the exact tag `#Person` are indexed. Matching uses the note title and, by default, its `alias` or `aliases` property. The index is built lazily only when a meeting note is created, and then reused until a relevant People note changes.
+Only Markdown notes inside `People` with the exact tag `#Person` are indexed. Matching uses the event's guest list first (names come straight from Apple Calendar), then falls back to the event title, and finally uses the note title plus — by default — its `alias` or `aliases` property. The index is built lazily only when a meeting note is created, and then reused until a relevant People note changes.
+
+The **Ignored people** setting takes a comma-separated list (capitalization agnostic) of people who should never be linked; a guest is skipped when even just their first name matches, e.g. `Mish, Wren, Dana Smith`.
+
+## Advanced URI integration
+
+With the [Advanced URI](https://github.com/Vinzent03/obsidian-advanced-uri) plugin installed, these commands can be triggered via `obsidian://adv-uri?vault=YourVault&commandid=wrens-calendar-meetings%3A<command>` (encode `:` as `%3A`):
+
+| Command ID | Action |
+| --- | --- |
+| `refresh-todays-meetings` | Refresh today's meetings |
+| `add-next-meeting-as-task` | Add next meeting as task |
+| `create-next-meeting-note` | Create next meeting note |
 
 ## Development
 

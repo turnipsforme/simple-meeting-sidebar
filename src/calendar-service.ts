@@ -22,6 +22,7 @@ interface HelperEvent {
   calendar?: unknown;
   hasGoogleMeet?: unknown;
   location?: unknown;
+  guests?: unknown;
 }
 
 export class CalendarService {
@@ -99,11 +100,19 @@ export class CalendarService {
     const location = typeof raw.location === "string" && raw.location.trim()
       ? compactSingleLine(raw.location, 500)
       : undefined;
+    const guests = Array.isArray(raw.guests)
+      ? raw.guests
+        .filter((entry): entry is string => typeof entry === "string")
+        .map((entry) => compactSingleLine(entry, 200))
+        .filter(Boolean)
+        .slice(0, 200)
+      : undefined;
 
     return {
       ...base,
       key: makeEventKey(base),
       ...(location ? { location } : {}),
+      ...(guests && guests.length > 0 ? { guests } : {}),
     };
   }
 

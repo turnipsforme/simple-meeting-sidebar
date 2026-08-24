@@ -14,6 +14,7 @@ export interface CalendarMeetingsController {
   getCachedDate(): string;
   getLastError(): string;
   isRefreshing(): boolean;
+  toggleSidebar(): Promise<void>;
   addEventAsTask(event: CalendarEvent): Promise<void>;
   createEventMeeting(event: CalendarEvent): Promise<void>;
   app: App;
@@ -41,7 +42,53 @@ export class CalendarMeetingsView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    this.renderPill();
     this.render();
+  }
+
+  /** Minimalist pill that replaces the tab icon/separator: click toggles the sidebar, drag resizes it. */
+  private renderPill(): void {
+    const existing = this.containerEl.querySelector(".wcm-pill");
+    const pill = existing instanceof HTMLElement
+      ? existing
+      : this.containerEl.createDiv({ cls: "wcm-pill" });
+    pill.setAttribute("aria-label", "Drag to resize the sidebar · Click to hide");
+    pill.setAttr("title", "Calendar Meetings — drag to move, click to hide");
+
+    let startX = 0;
+    let startWidth = 0;
+    let dragging = false;
+    let moved = false;
+
+    const splitEl = () => (this.contentEl.closest(".workspace")?.querySelector(".workspace-split.mod-right-split") ?? null) as HTMLElement | null;
+
+    pill.onmousedown = (event: MouseEvent) => {
+      if (event.button !== 0) return;
+      dragging = true;
+      moved = false;
+      startX = event.clientX;
+      startWidth = splitEl()?.offsetWidth ?? 300;
+      event.preventDefault();
+    };
+
+    this.registerDomEvent(window, "mousemove", (event: MouseEvent) => {
+      if (!dragging) return;
+      const delta = event.clientX - startX;
+      if (Math.abs(delta) < 4 && !moved) return;
+      moved = true;
+      const split = splitEl();
+      if (!split) return;
+      const width = Math.min(800, Math.max(160, startWidth - delta));
+      split.style.width = `${width}px`;
+      const workspaceSplit = this.app.workspace.rightSplit as unknown as { width?: number } | undefined;
+      if (workspaceSplit) workspaceSplit.width = width;
+    });
+
+    this.registerDomEvent(window, "mouseup", () => {
+      if (!dragging) return;
+      dragging = false;
+      if (!moved) void this.controller.toggleSidebar().catch(() => undefined);
+    });
   }
 
   render(): void {
@@ -54,13 +101,11 @@ export class CalendarMeetingsView extends ItemView {
 
     const events = this.controller.getTodayEvents();
     if (events.length === 0) {
-      const allTodayEvents = this.controller.getTodayAndYesterdayEvents().today;
-      const message = !this.controller.getCachedDate()
-        ? "Today's calendar has not been refreshed yet. Use “Refresh today's meetings” in the command palette."
-        : allTodayEvents.length > 0
-          ? "All of today's meetings have been handled. Refresh manually to show them again."
-          : "No meetings are scheduled for today.";
-      container.createDiv({ cls: "wcm-empty", text: message });
+      if (!this.controller.getCachedDate()) {
+        container.createDiv({ cls: "wcm-empty", text: "Today's calendar has not been refreshed yet. Use “Refresh today's meetings” in the command palette." });
+      } else if (this.controller.getTodayAndYesterdayEvents().today.length === 0) {
+        container.createDiv({ cls: "wcm-empty", text: "No meetings are scheduled for today." });
+      }
       return;
     }
 

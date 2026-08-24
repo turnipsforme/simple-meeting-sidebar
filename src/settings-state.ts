@@ -18,6 +18,7 @@ export function loadPluginSettings(value: unknown): StoredPluginSettings {
     considerAliases: typeof raw.considerAliases === "boolean"
       ? raw.considerAliases
       : DEFAULT_SETTINGS.considerAliases,
+    ignoredPeople: typeof raw.ignoredPeople === "string" ? raw.ignoredPeople.slice(0, 2_000) : "",
     selectedCalendars: readSelectedCalendars(raw.selectedCalendars),
     onlyGoogleMeetEvents: typeof raw.onlyGoogleMeetEvents === "boolean"
       ? raw.onlyGoogleMeetEvents
@@ -72,6 +73,13 @@ function readCachedEvent(value: unknown): CalendarEvent | null {
   const meetingNotePath = typeof value.meetingNotePath === "string" && value.meetingNotePath.trim()
     ? value.meetingNotePath.trim().slice(0, 1_000)
     : undefined;
+  const guests = Array.isArray(value.guests)
+    ? value.guests
+      .filter((entry): entry is string => typeof entry === "string")
+      .map((entry) => compactSingleLine(entry, 200))
+      .filter(Boolean)
+      .slice(0, 200)
+    : undefined;
 
   return {
     ...base,
@@ -79,6 +87,7 @@ function readCachedEvent(value: unknown): CalendarEvent | null {
     ...(location ? { location } : {}),
     ...(value.taskAdded === true ? { taskAdded: true } : {}),
     ...(meetingNotePath ? { meetingNotePath } : {}),
+    ...(guests && guests.length > 0 ? { guests } : {}),
     ...(value.sidebarHidden === true ? { sidebarHidden: true } : {}),
   };
 }

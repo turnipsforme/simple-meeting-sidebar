@@ -29,7 +29,7 @@ export class MeetingService {
 
     const baseName = sanitizeMeetingTitle(event.title);
     let basenames = this.getExistingMeetingBasenames(folder);
-    const person = this.people.find(event.title);
+    const person = this.people.find(event.title, event.guests);
     let meetingFile: TFile | null = null;
 
     // Retrying makes simultaneous button presses collision-safe without ever overwriting.

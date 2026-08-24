@@ -1,6 +1,6 @@
 import { getAllTags, type App, type CachedMetadata, TFile } from "obsidian";
 import type { PersonMatch } from "./models";
-import { findLongestPersonKey, normalizePersonText, normalizeVaultFolder } from "./utils";
+import { findLongestPersonKey, filterIgnoredGuests, normalizePersonText, normalizeVaultFolder } from "./utils";
 
 interface IndexedPerson {
   file: TFile;
@@ -17,6 +17,7 @@ export class PeopleIndex {
     private readonly app: App,
     private getFolder: () => string,
     private shouldUseAliases: () => boolean,
+    private readonly getIgnoredPeople: () => string = () => "",
   ) {}
 
   invalidate(): void {
@@ -28,8 +29,15 @@ export class PeopleIndex {
     return path === folder || path.startsWith(`${folder}/`);
   }
 
-  find(eventTitle: string): PersonMatch | null {
+  find(eventTitle: string, guests?: readonly string[]): PersonMatch | null {
     if (this.dirty) this.rebuild();
+
+    // Guest names are the strongest signal; fall back to the event title.
+    for (const guest of filterIgnoredGuests(guests ?? [], this.getIgnoredPeople())) {
+      const key = findLongestPersonKey(guest, this.lookup, this.maximumCandidateTokens);
+      if (key) return this.lookup.get(key) ?? null;
+    }
+
     const key = findLongestPersonKey(eventTitle, this.lookup, this.maximumCandidateTokens);
     if (!key) return null;
     return this.lookup.get(key) ?? null;

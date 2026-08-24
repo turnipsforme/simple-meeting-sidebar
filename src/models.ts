@@ -12,6 +12,7 @@ export interface CalendarEvent {
   calendar: string;
   hasGoogleMeet: boolean;
   location?: string;
+  guests?: string[];
   taskAdded?: boolean;
   meetingNotePath?: string;
   sidebarHidden?: boolean;
@@ -22,6 +23,7 @@ export interface StoredPluginSettings {
   meetingsFolder: string;
   peopleFolder: string;
   considerAliases: boolean;
+  ignoredPeople: string;
   selectedCalendars: string[] | null;
   onlyGoogleMeetEvents: boolean;
   refreshSchedule: RefreshSchedule;
@@ -36,6 +38,7 @@ export const DEFAULT_SETTINGS: StoredPluginSettings = {
   meetingsFolder: "Meetings",
   peopleFolder: "People",
   considerAliases: true,
+  ignoredPeople: "",
   selectedCalendars: null,
   onlyGoogleMeetEvents: false,
   refreshSchedule: "daily",

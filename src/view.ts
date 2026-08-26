@@ -14,6 +14,7 @@ export interface CalendarMeetingsController {
   getCachedDate(): string;
   getLastError(): string;
   isRefreshing(): boolean;
+  refreshToday(manual?: boolean): Promise<void>;
   toggleSidebar(): Promise<void>;
   getPillOffset(): number;
   setPillOffset(value: number): Promise<void>;
@@ -54,8 +55,8 @@ export class CalendarMeetingsView extends ItemView {
     const pill = existing instanceof HTMLElement
       ? existing
       : this.containerEl.createDiv({ cls: "wcm-pill" });
-    pill.setAttribute("aria-label", "Drag to move up/down · Click to hide");
-    pill.setAttr("title", "Calendar Meetings — drag to reposition, click to hide");
+    pill.setAttribute("aria-label", "Drag to move up/down · Click to refresh today's meetings");
+    pill.setAttr("title", "Calendar Meetings — drag to reposition, click to refresh today's meetings");
 
     let startY = 0;
     let startOffset = 0;
@@ -87,7 +88,7 @@ export class CalendarMeetingsView extends ItemView {
       if (!dragging) return;
       dragging = false;
       if (!moved) {
-        void this.controller.toggleSidebar().catch(() => undefined);
+        void this.controller.refreshToday(false).catch(() => undefined);
         return;
       }
       const offset = Math.min(800, Math.max(0, Number.parseInt(this.contentEl.style.marginTop || "0", 10)));
@@ -106,13 +107,16 @@ export class CalendarMeetingsView extends ItemView {
     container.empty();
     container.addClass("wcm-view");
 
+    if (this.controller.isRefreshing()) {
+      container.createDiv({ cls: "wcm-refreshing", text: "Refreshing calendars…" });
+    }
     const error = this.controller.getLastError();
     if (error) container.createDiv({ cls: "wcm-error", text: error });
 
     const events = this.controller.getTodayEvents();
     if (events.length === 0) {
       if (!this.controller.getCachedDate()) {
-        container.createDiv({ cls: "wcm-empty", text: "Today's calendar has not been refreshed yet. Use “Refresh today's meetings” in the command palette." });
+        container.createDiv({ cls: "wcm-empty", text: "Today's calendar has not been refreshed yet. Click the pill above or use “Refresh today's meetings” in the command palette." });
       } else if (this.controller.getTodayAndYesterdayEvents().today.length === 0) {
         container.createDiv({ cls: "wcm-empty", text: "No meetings are scheduled for today." });
       }

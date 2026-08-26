@@ -23,7 +23,7 @@ Standard Obsidian installers that download only `main.js`, `manifest.json`, and 
 
 Restart Obsidian, enable **Calendar Meetings** under Community plugins, and allow Calendar access when macOS asks. The helper only reads events; it never writes to Apple Calendar.
 
-On a new install, the plugin adds its view to the right sidebar once. If you close it, it stays closed across later Obsidian launches. Run **Calendar Meetings: Toggle meetings sidebar** whenever you want it back. The sidebar tab icon and separator are intentionally hidden; a small pill at the top of the sidebar replaces them — drag it up/down to reposition the plugin within the sidebar and click it to hide it again.
+On a new install, the plugin adds its view to the right sidebar once. If you close it, it stays closed across later Obsidian launches. Run **Calendar Meetings: Toggle meetings sidebar** whenever you want it back. The sidebar tab icon and separator are intentionally hidden; a small pill at the top of the sidebar replaces them — drag it up/down to reposition the plugin within the sidebar and click it to refresh today's meetings. The click-refresh only surfaces events that haven't been handled yet, so already-processed meetings stay hidden.
 
 ## Use
 

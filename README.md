@@ -28,7 +28,7 @@ On a new install, the plugin adds its view to the right sidebar once. If you clo
 ## Use
 
 - Hover an event and click `•` to add `- [ ] Event title` under the detected Tasks heading in today's daily note.
-- Click `••` to create and open a note in `Meetings`.
+- Click `••` to create and open a note in `Meetings`. By default it is also listed in today's daily note; turn off **Add meeting notes to daily note** in the plugin settings to skip that reference while keeping the meeting note's link back to it.
 - Run **Calendar Meetings: Refresh today's meetings** for an immediate refresh.
 - Run **Calendar Meetings: Toggle meetings sidebar** to show or hide the sidebar.
 - Run **Calendar Meetings: Add next meeting as task** or **Create next meeting note** to handle the next unhandled event from anywhere (great for Shortcuts and URIs).

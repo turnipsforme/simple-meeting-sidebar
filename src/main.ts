@@ -51,6 +51,7 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
       dailyNotes,
       this.peopleIndex,
       () => this.settings.meetingsFolder,
+      () => this.settings.addMeetingNotesToDailyNote,
     );
 
     this.registerView(

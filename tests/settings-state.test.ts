@@ -29,6 +29,7 @@ test("settings loader normalizes user folders and accepts known refresh values",
     considerAliases: false,
     selectedCalendars: [" Personal ", "Work", "Work", 42],
     onlyGoogleMeetEvents: true,
+    addMeetingNotesToDailyNote: false,
     refreshSchedule: "360",
     dailyRefreshTime: "07:45",
   });
@@ -38,6 +39,7 @@ test("settings loader normalizes user folders and accepts known refresh values",
   assert.equal(loaded.considerAliases, false);
   assert.deepEqual(loaded.selectedCalendars, ["Personal", "Work"]);
   assert.equal(loaded.onlyGoogleMeetEvents, true);
+  assert.equal(loaded.addMeetingNotesToDailyNote, false);
   assert.equal(loaded.refreshSchedule, "360");
   assert.equal(loaded.dailyRefreshTime, "07:45");
 });

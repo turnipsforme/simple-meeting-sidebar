@@ -26,6 +26,9 @@ export function loadPluginSettings(value: unknown): StoredPluginSettings {
     onlyGoogleMeetEvents: typeof raw.onlyGoogleMeetEvents === "boolean"
       ? raw.onlyGoogleMeetEvents
       : DEFAULT_SETTINGS.onlyGoogleMeetEvents,
+    addMeetingNotesToDailyNote: typeof raw.addMeetingNotesToDailyNote === "boolean"
+      ? raw.addMeetingNotesToDailyNote
+      : DEFAULT_SETTINGS.addMeetingNotesToDailyNote,
     refreshSchedule: isRefreshSchedule(raw.refreshSchedule)
       ? raw.refreshSchedule
       : DEFAULT_SETTINGS.refreshSchedule,

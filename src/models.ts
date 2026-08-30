@@ -27,6 +27,7 @@ export interface StoredPluginSettings {
   sidebarPillOffset: number;
   selectedCalendars: string[] | null;
   onlyGoogleMeetEvents: boolean;
+  addMeetingNotesToDailyNote: boolean;
   refreshSchedule: RefreshSchedule;
   dailyRefreshTime: string;
   cachedDate: string;
@@ -43,6 +44,7 @@ export const DEFAULT_SETTINGS: StoredPluginSettings = {
   sidebarPillOffset: 0,
   selectedCalendars: null,
   onlyGoogleMeetEvents: false,
+  addMeetingNotesToDailyNote: true,
   refreshSchedule: "daily",
   dailyRefreshTime: "08:00",
   cachedDate: "",

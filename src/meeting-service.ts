@@ -15,6 +15,7 @@ export class MeetingService {
     private readonly dailyNotes: DailyNoteService,
     private readonly people: PeopleIndex,
     private getMeetingFolder: () => string,
+    private shouldAddMeetingToDailyNote: () => boolean,
   ) {}
 
   async addTask(event: CalendarEvent): Promise<boolean> {
@@ -58,17 +59,19 @@ export class MeetingService {
     if (!meetingFile) throw new Error("Could not find an unused meeting note name.");
 
     let warning: string | undefined;
-    try {
-      const meetingLink = this.app.fileManager.generateMarkdownLink(
-        meetingFile,
-        dailyNote.path,
-        undefined,
-        meetingFile.basename,
-      );
-      await this.dailyNotes.addMeetingReference(dailyNote, meetingLink);
-    } catch (error) {
-      console.error("Calendar Meetings: meeting created, but daily note link failed", error);
-      warning = "The meeting note was created, but its link could not be added to today's daily note.";
+    if (this.shouldAddMeetingToDailyNote()) {
+      try {
+        const meetingLink = this.app.fileManager.generateMarkdownLink(
+          meetingFile,
+          dailyNote.path,
+          undefined,
+          meetingFile.basename,
+        );
+        await this.dailyNotes.addMeetingReference(dailyNote, meetingLink);
+      } catch (error) {
+        console.error("Calendar Meetings: meeting created, but daily note link failed", error);
+        warning = "The meeting note was created, but its link could not be added to today's daily note.";
+      }
     }
 
     await this.app.workspace.getLeaf(false).openFile(meetingFile);

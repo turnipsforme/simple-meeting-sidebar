@@ -46,6 +46,16 @@ export class CalendarMeetingsSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
+      .setName("Add meeting notes to daily note")
+      .setDesc("When turned off, creating a meeting note does not add a reference to today's daily note. The meeting note still links back to it.")
+      .addToggle((toggle) => toggle
+        .setValue(this.calendarPlugin.settings.addMeetingNotesToDailyNote)
+        .onChange(async (value) => {
+          this.calendarPlugin.settings.addMeetingNotesToDailyNote = value;
+          await this.calendarPlugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
       .setName("People folder")
       .setDesc("Only notes in this folder tagged #Person are considered for person matching.")
       .addText((text) => text

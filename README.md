@@ -40,6 +40,8 @@ New meeting notes link back to the daily note with a readable date label such as
 
 The default schedule is once per day at 08:00 local time. The plugin checks regularly while Obsidian is open, retries later after a failed refresh, and catches up at startup if Obsidian was closed when a refresh became due. The setting can be changed to manual or another Readwise-style interval.
 
+When there are no meetings scheduled for today, the sidebar stays blank.
+
 In the plugin settings, each Apple calendar can be included or excluded. You can also limit the sidebar to events that contain a `meet.google.com` link in their URL, location, or notes. Event titles are shown without emoji or a time prefix.
 
 ## Person matching

@@ -117,8 +117,6 @@ export class CalendarMeetingsView extends ItemView {
     if (events.length === 0) {
       if (!this.controller.getCachedDate()) {
         container.createDiv({ cls: "wcm-empty", text: "Today's calendar has not been refreshed yet. Click the pill above or use “Refresh today's meetings” in the command palette." });
-      } else if (this.controller.getTodayAndYesterdayEvents().today.length === 0) {
-        container.createDiv({ cls: "wcm-empty", text: "No meetings are scheduled for today." });
       }
       return;
     }

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-RELEASE_ROOT="$PLUGIN_ROOT/release/wrens-calendar-meetings"
+RELEASE_ROOT="$PLUGIN_ROOT/release/simple-meeting-sidebar"
 VERSION="$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' "$PLUGIN_ROOT/manifest.json" | head -n 1)"
 
 mkdir -p "$RELEASE_ROOT/bin"

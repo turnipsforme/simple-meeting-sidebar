@@ -47,8 +47,8 @@ compile_architecture x86_64
   -output "$OUTPUT_PATH"
 
 codesign --force --sign - \
-  --identifier com.wren.obsidian-calendar-meetings.helper \
+  --identifier com.turnipsforme.simple-meeting-sidebar.helper \
   "$OUTPUT_PATH"
 chmod 755 "$OUTPUT_PATH"
 
-echo "Built universal Calendar helper at $OUTPUT_PATH"
+echo "Built universal Simple Meeting Sidebar helper at $OUTPUT_PATH"

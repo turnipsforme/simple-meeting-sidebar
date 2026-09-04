@@ -1,9 +1,0 @@
-{
-  "id": "wrens-calendar-meetings",
-  "name": "Calendar Meetings",
-  "version": "0.5.1",
-  "minAppVersion": "1.5.0",
-  "description": "Shows today's Apple Calendar events in the sidebar and turns them into tasks or meeting notes.",
-  "author": "Wren",
-  "isDesktopOnly": true
-}

@@ -1,8 +1,8 @@
 {
-  "name": "calendar-meetings",
-  "version": "0.5.1",
+  "name": "simple-meeting-sidebar",
+  "version": "0.5.2",
   "private": true,
-  "description": "A macOS-only Obsidian sidebar for today's Apple Calendar meetings.",
+  "description": "A macOS-only sidebar for today's Apple Calendar meetings.",
   "type": "module",
   "scripts": {
     "dev": "node esbuild.config.mjs",

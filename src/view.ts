@@ -1,7 +1,7 @@
 import { ItemView, Modal, Notice, TFile, type App, type WorkspaceLeaf } from "obsidian";
 import type { CalendarEvent } from "./models";
 
-export const CALENDAR_MEETINGS_VIEW = "wrens-calendar-meetings-view";
+export const CALENDAR_MEETINGS_VIEW = "simple-meeting-sidebar-view";
 
 export interface CalendarEventGroups {
   today: CalendarEvent[];
@@ -56,7 +56,7 @@ export class CalendarMeetingsView extends ItemView {
       ? existing
       : this.containerEl.createDiv({ cls: "wcm-pill" });
     pill.setAttribute("aria-label", "Drag to move up/down · Click to refresh today's meetings");
-    pill.setAttr("title", "Calendar Meetings — drag to reposition, click to refresh today's meetings");
+    pill.setAttr("title", "Simple Meeting Sidebar: drag to reposition, click to refresh today's meetings");
 
     let startY = 0;
     let startOffset = 0;
@@ -275,6 +275,6 @@ function renderEventRow(
 
 function reportActionError(location: string, error: unknown): void {
   const message = error instanceof Error ? error.message : "The action could not be completed.";
-  console.error(`Calendar Meetings: ${location} action failed`, error);
-  new Notice(`Calendar Meetings: ${message}`);
+  console.error(`Simple Meeting Sidebar: ${location} action failed`, error);
+  new Notice(`Simple Meeting Sidebar: ${message}`);
 }

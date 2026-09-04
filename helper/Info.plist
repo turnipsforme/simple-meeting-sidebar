@@ -5,15 +5,15 @@
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleDisplayName</key>
-  <string>Calendar Meetings Helper</string>
+  <string>Simple Meeting Sidebar Helper</string>
   <key>CFBundleExecutable</key>
   <string>calendar-helper</string>
   <key>CFBundleIdentifier</key>
-  <string>com.wren.obsidian-calendar-meetings.helper</string>
+  <string>com.turnipsforme.simple-meeting-sidebar.helper</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>Calendar Meetings Helper</string>
+  <string>Simple Meeting Sidebar Helper</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -23,8 +23,8 @@
   <key>LSBackgroundOnly</key>
   <true/>
   <key>NSCalendarsFullAccessUsageDescription</key>
-  <string>Calendar Meetings reads today's events so Obsidian can show them in its sidebar.</string>
+  <string>Simple Meeting Sidebar reads today's events so Obsidian can show them in its sidebar.</string>
   <key>NSCalendarsUsageDescription</key>
-  <string>Calendar Meetings reads today's events so Obsidian can show them in its sidebar.</string>
+  <string>Simple Meeting Sidebar reads today's events so Obsidian can show them in its sidebar.</string>
 </dict>
 </plist>

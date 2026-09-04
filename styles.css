@@ -3,18 +3,18 @@
 }
 
 /* Hide the sidebar tab icon and its separator for this view; the in-view pill replaces them. */
-.workspace-tab-header[data-type="wrens-calendar-meetings-view"] {
+.workspace-tab-header[data-type="simple-meeting-sidebar-view"] {
   display: none !important;
 }
 
 /* Remove every divider around this view so only its contents and the pill are visible. */
-.workspace-tabs:has(.workspace-leaf-content[data-type="wrens-calendar-meetings-view"]) .workspace-tab-header-container {
+.workspace-tabs:has(.workspace-leaf-content[data-type="simple-meeting-sidebar-view"]) .workspace-tab-header-container {
   display: none !important;
 }
 
-.workspace-tabs:has(.workspace-leaf-content[data-type="wrens-calendar-meetings-view"]),
-.workspace-leaf:has(.workspace-leaf-content[data-type="wrens-calendar-meetings-view"]),
-.workspace-leaf-content[data-type="wrens-calendar-meetings-view"] {
+.workspace-tabs:has(.workspace-leaf-content[data-type="simple-meeting-sidebar-view"]),
+.workspace-leaf:has(.workspace-leaf-content[data-type="simple-meeting-sidebar-view"]),
+.workspace-leaf-content[data-type="simple-meeting-sidebar-view"] {
   border-top: none !important;
   border-bottom: none !important;
   border-left: none !important;
@@ -23,10 +23,10 @@
 }
 
 /* Kill the divider drawn by the neighboring pane directly above ours. */
-.workspace-split.mod-right-split .workspace-tabs:has(~ .workspace-tabs .workspace-leaf-content[data-type="wrens-calendar-meetings-view"]),
-.workspace-split.mod-right-split .workspace-leaf:has(~ .workspace-leaf .workspace-leaf-content[data-type="wrens-calendar-meetings-view"]),
-.workspace-split.mod-right-split .workspace-tabs:has(.workspace-leaf-content[data-type="wrens-calendar-meetings-view"]) .workspace-leaf,
-.workspace-split.mod-right-split .workspace-tabs:has(.workspace-leaf-content[data-type="wrens-calendar-meetings-view"])
+.workspace-split.mod-right-split .workspace-tabs:has(~ .workspace-tabs .workspace-leaf-content[data-type="simple-meeting-sidebar-view"]),
+.workspace-split.mod-right-split .workspace-leaf:has(~ .workspace-leaf .workspace-leaf-content[data-type="simple-meeting-sidebar-view"]),
+.workspace-split.mod-right-split .workspace-tabs:has(.workspace-leaf-content[data-type="simple-meeting-sidebar-view"]) .workspace-leaf,
+.workspace-split.mod-right-split .workspace-tabs:has(.workspace-leaf-content[data-type="simple-meeting-sidebar-view"])
   ~ .workspace-split
   .workspace-leaf {
   border-top: none !important;
@@ -34,7 +34,7 @@
   box-shadow: none !important;
 }
 
-.workspace-leaf-content[data-type="wrens-calendar-meetings-view"] {
+.workspace-leaf-content[data-type="simple-meeting-sidebar-view"] {
   position: relative;
 }
 

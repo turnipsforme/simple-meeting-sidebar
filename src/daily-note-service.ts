@@ -119,7 +119,7 @@ export class DailyNoteService {
       try {
         return (await periodic.createDailyNote(date.clone())) ?? null;
       } catch (error) {
-        console.warn("Calendar Meetings: Periodic Notes could not create today's note", error);
+        console.warn("Simple Meeting Sidebar: Periodic Notes could not create today's note", error);
       }
     }
 
@@ -128,7 +128,7 @@ export class DailyNoteService {
       try {
         return (await core.instance.createDailyNote(date.clone())) ?? null;
       } catch (error) {
-        console.warn("Calendar Meetings: Daily Notes could not create today's note", error);
+        console.warn("Simple Meeting Sidebar: Daily Notes could not create today's note", error);
       }
     }
     return null;

@@ -11,7 +11,7 @@ export class CalendarMeetingsSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Calendar Meetings" });
+    containerEl.createEl("h2", { text: "Simple Meeting Sidebar" });
 
     containerEl.createEl("h3", { text: "Events" });
     containerEl.createEl("p", {
@@ -139,7 +139,7 @@ export class CalendarMeetingsSettingTab extends PluginSettingTab {
     containerEl.createEl("h3", { text: "Advanced URI integration" });
     containerEl.createDiv({
       cls: "setting-item-description wcm-uri-help",
-      text: "If the Advanced URI plugin is installed you can trigger these commands from links, shortcuts, or other apps using: obsidian://adv-uri?vault=YourVault&commandid=wrens-calendar-meetings%3Arefresh-todays-meetings — replace commandid with any of the exposed commands below (the : must be encoded as %3A).",
+      text: "If the Advanced URI plugin is installed you can trigger these commands from links, shortcuts, or other apps using: obsidian://adv-uri?vault=YourVault&commandid=simple-meeting-sidebar%3Arefresh-todays-meetings. Replace commandid with any of the exposed commands below; the : must be encoded as %3A.",
     });
     const uriList = containerEl.createDiv({ cls: "wcm-uri-list" });
     for (const command of [
@@ -149,7 +149,7 @@ export class CalendarMeetingsSettingTab extends PluginSettingTab {
     ] as const) {
       uriList.createDiv({
         cls: "wcm-uri-row",
-        text: `${command[0]} → wrens-calendar-meetings:${command[1]}`,
+        text: `${command[0]} → simple-meeting-sidebar:${command[1]}`,
       });
     }
   }

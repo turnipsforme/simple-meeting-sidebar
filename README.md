@@ -1,58 +1,50 @@
-# Calendar Meetings
+# Simple Meeting Sidebar
 
-A macOS-only Obsidian plugin that reads events from Apple Calendar, shows today's events in the right sidebar, and turns an event into either a daily-note task or a meeting note with one click.
+> **macOS only.** Simple Meeting Sidebar uses Apple Calendar and does not run on Windows, Linux, iPhone, iPad, or Android.
 
-## Install
+A simpler, more minimal meetings plugin. There is no setup beyond allowing your Mac's Calendar access and picking which calendars you would like included.
 
-Download `main.js`, `manifest.json`, and `styles.css` from the latest GitHub release and copy them into:
+Simple Meeting Sidebar shows today's Apple Calendar events in the right sidebar. With one click, you can add an event to your daily note as a task or create a meeting note.
 
-```text
-<your vault>/.obsidian/plugins/wrens-calendar-meetings
-```
+## Getting started
 
-The folder must include at least:
+1. Install and enable **Simple Meeting Sidebar**.
+2. Allow Calendar access when macOS asks. The plugin only reads events and never writes to Apple Calendar.
+3. Open the plugin settings and choose which Apple calendars to include.
 
-```text
-bin/calendar-helper
-main.js
-manifest.json
-styles.css
-```
-
-Standard Obsidian installers that download only `main.js`, `manifest.json`, and `styles.css` are also supported. The signed universal Apple Calendar helper is embedded in `main.js` and is installed into `bin/calendar-helper` with executable permissions the first time it is needed.
-
-Restart Obsidian, enable **Calendar Meetings** under Community plugins, and allow Calendar access when macOS asks. The helper only reads events; it never writes to Apple Calendar.
-
-On a new install, the plugin adds its view to the right sidebar once. If you close it, it stays closed across later Obsidian launches. Run **Calendar Meetings: Toggle meetings sidebar** whenever you want it back. The sidebar tab icon and separator are intentionally hidden; a small pill at the top of the sidebar replaces them — drag it up/down to reposition the plugin within the sidebar and click it to refresh today's meetings. The click-refresh only surfaces events that haven't been handled yet, so already-processed meetings stay hidden.
+The plugin adds its view to the right sidebar on first launch. If you close it, run **Simple Meeting Sidebar: Toggle meetings sidebar** to bring it back. Drag the small pill at the top to reposition the view, or click it to refresh today's meetings.
 
 ## Use
 
-- Hover an event and click `•` to add `- [ ] Event title` under the detected Tasks heading in today's daily note.
-- Click `••` to create and open a note in `Meetings`. By default it is also listed in today's daily note; turn off **Add meeting notes to daily note** in the plugin settings to skip that reference while keeping the meeting note's link back to it.
-- Run **Calendar Meetings: Refresh today's meetings** for an immediate refresh.
-- Run **Calendar Meetings: Toggle meetings sidebar** to show or hide the sidebar.
-- Run **Calendar Meetings: Add next meeting as task** or **Create next meeting note** to handle the next unhandled event from anywhere (great for Shortcuts and URIs).
-- Run **Calendar Meetings: Today's calendar events** to refresh Apple Calendar and open a floating window containing both today's and yesterday's events, with the same task and meeting-note buttons.
+- Hover over an event and click `•` to add `- [ ] Event title` under the Tasks heading in today's daily note.
+- Click `••` to create and open a note in `Meetings`. By default, the meeting note is also linked from today's daily note.
+- Run **Simple Meeting Sidebar: Refresh today's meetings** for an immediate refresh.
+- Run **Simple Meeting Sidebar: Toggle meetings sidebar** to show or hide the sidebar.
+- Run **Simple Meeting Sidebar: Add next meeting as task** or **Create next meeting note** to handle the next event from anywhere.
+- Run **Simple Meeting Sidebar: Today's calendar events** to open a floating window with today's and yesterday's events.
 
-After either action succeeds, that event is hidden from the sidebar for the rest of the refresh cycle. A manual refresh restores handled events to the list, while preserving which task or meeting note was already created.
+After an action succeeds, the event stays hidden until the next manual refresh. Existing tasks and meeting notes are still remembered.
 
-New meeting notes link back to the daily note with a readable date label such as `Mon, Aug 3 2026`. Meeting-note numbering also recognizes an existing suffix followed by a dash, so `Meeting 12 - follow-up` makes the next note `Meeting 13`.
+## Settings
 
-The default schedule is once per day at 08:00 local time. The plugin checks regularly while Obsidian is open, retries later after a failed refresh, and catches up at startup if Obsidian was closed when a refresh became due. The setting can be changed to manual or another Readwise-style interval.
-
-When there are no meetings scheduled for today, the sidebar stays blank.
-
-In the plugin settings, each Apple calendar can be included or excluded. You can also limit the sidebar to events that contain a `meet.google.com` link in their URL, location, or notes. Event titles are shown without emoji or a time prefix.
+- Include or exclude individual Apple calendars.
+- Show only events containing a `meet.google.com` link.
+- Choose the meeting-note and people folders.
+- Decide whether meeting notes are linked from today's daily note.
+- Ignore selected people when linking guests to `#Person` notes.
+- Refresh manually, hourly, every 6 or 12 hours, daily, or weekly.
 
 ## Person matching
 
-Only Markdown notes inside `People` with the exact tag `#Person` are indexed. Matching uses the event's guest list first (names come straight from Apple Calendar), then falls back to the event title, and finally uses the note title plus — by default — its `alias` or `aliases` property. The index is built lazily only when a meeting note is created, and then reused until a relevant People note changes.
-
-The **Ignored people** setting takes a comma-separated list (capitalization agnostic) of people who should never be linked; a guest is skipped when even just their first name matches, e.g. `Mish, Wren, Dana Smith`.
+Only Markdown notes inside `People` with the exact tag `#Person` are indexed. Matching checks Apple Calendar guest names, then the event title, then the note title and optional aliases.
 
 ## Advanced URI integration
 
-With the [Advanced URI](https://github.com/Vinzent03/obsidian-advanced-uri) plugin installed, these commands can be triggered via `obsidian://adv-uri?vault=YourVault&commandid=wrens-calendar-meetings%3A<command>` (encode `:` as `%3A`):
+With [Advanced URI](https://github.com/Vinzent03/obsidian-advanced-uri) installed, commands can be triggered with a URL such as:
+
+```text
+obsidian://adv-uri?vault=YourVault&commandid=simple-meeting-sidebar%3Arefresh-todays-meetings
+```
 
 | Command ID | Action |
 | --- | --- |
@@ -60,13 +52,17 @@ With the [Advanced URI](https://github.com/Vinzent03/obsidian-advanced-uri) plug
 | `add-next-meeting-as-task` | Add next meeting as task |
 | `create-next-meeting-note` | Create next meeting note |
 
+## Privacy and permissions
+
+Simple Meeting Sidebar accesses Apple Calendar data outside your vault, including event titles, times, locations, notes, URLs, calendar names, and guest names. This data is processed locally on your Mac and saved only in the plugin's local settings cache. The plugin does not use network services, collect telemetry, or write to Apple Calendar.
+
 ## Development
 
-Requirements: Node.js 20 or newer and Xcode Command Line Tools.
+Requirements: Node.js 20 or newer, macOS, and Xcode Command Line Tools.
 
 ```bash
 npm install
 npm run check
 ```
 
-`npm run check` type-checks and bundles the Obsidian plugin, builds and ad-hoc signs a universal Apple Silicon/Intel Swift helper, creates the lean release folder, then runs the TypeScript and helper self-tests.
+`npm run check` type-checks and bundles the plugin, builds and signs a universal Apple Silicon and Intel helper, creates the release folder, and runs the TypeScript and helper self-tests.

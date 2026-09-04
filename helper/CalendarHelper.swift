@@ -22,7 +22,7 @@ private enum HelperError: LocalizedError {
         case .invalidArguments:
             return "Calendar helper expected an ISO-8601 start and end timestamp."
         case .calendarAccessDenied:
-            return "Calendar access was denied. Allow Calendar Meetings in System Settings → Privacy & Security → Calendars, then refresh again."
+            return "Calendar access was denied. Allow Simple Meeting Sidebar in System Settings → Privacy & Security → Calendars, then refresh again."
         }
     }
 }
@@ -91,7 +91,7 @@ private struct CalendarHelper {
             try writeJSON(events)
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-            writeStandardError("Calendar Meetings: \(message)\n")
+            writeStandardError("Simple Meeting Sidebar: \(message)\n")
             Foundation.exit(1)
         }
     }

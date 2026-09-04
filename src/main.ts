@@ -69,7 +69,7 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
       id: "show-todays-meetings",
       name: "Toggle meetings sidebar",
       callback: () => void this.toggleSidebar().catch((error: unknown) => {
-        console.error("Calendar Meetings: could not toggle the sidebar", error);
+        console.error("Simple Meeting Sidebar: could not toggle the sidebar", error);
       }),
     });
     this.addCommand({
@@ -110,7 +110,7 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
     this.app.workspace.onLayoutReady(() => {
       if (!this.settings.sidebarInitialized) void this.initializeSidebar();
       if (process.platform !== "darwin") {
-        this.lastRefreshError = "Calendar Meetings is available on macOS only.";
+        this.lastRefreshError = "Simple Meeting Sidebar is available on macOS only.";
         this.renderViews();
         return;
       }
@@ -166,7 +166,7 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
   async refreshToday(manual = false): Promise<void> {
     if (process.platform !== "darwin") {
       const error = new Error("Apple Calendar access is supported on macOS only.");
-      if (manual) new Notice(`Calendar Meetings: ${error.message}`);
+      if (manual) new Notice(`Simple Meeting Sidebar: ${error.message}`);
       throw error;
     }
     if (this.refreshPromise) return this.refreshPromise;
@@ -203,7 +203,7 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
       meetingNotePath: result.file.path,
       sidebarHidden: true,
     });
-    if (result.warning) new Notice(`Calendar Meetings: ${result.warning}`);
+    if (result.warning) new Notice(`Simple Meeting Sidebar: ${result.warning}`);
   }
 
   configureSchedule(): void {
@@ -232,7 +232,7 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
       this.settings.sidebarInitialized = true;
       await this.saveSettings();
     } catch (error: unknown) {
-      console.error("Calendar Meetings: could not initialize the sidebar", error);
+      console.error("Simple Meeting Sidebar: could not initialize the sidebar", error);
     }
   }
 
@@ -250,13 +250,13 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
       await this.saveSettings();
       if (manual) {
         const count = this.getTodayEvents().length;
-        new Notice(`Calendar Meetings: found ${count} event${count === 1 ? "" : "s"} today.`);
+        new Notice(`Simple Meeting Sidebar: found ${count} event${count === 1 ? "" : "s"} today.`);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Apple Calendar could not be refreshed.";
       this.lastRefreshError = message;
-      console.error("Calendar Meetings: refresh failed", error);
-      new Notice(`Calendar Meetings: ${message}`, 8000);
+      console.error("Simple Meeting Sidebar: refresh failed", error);
+      new Notice(`Simple Meeting Sidebar: ${message}`, 8000);
       throw error;
     }
   }
@@ -330,14 +330,14 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
   ): Promise<void> {
     const event = this.getTodayEvents().find((candidate) => candidate.taskAdded !== true);
     if (!event) {
-      new Notice(`Calendar Meetings: no upcoming meeting to add as a ${label}.`);
+      new Notice(`Simple Meeting Sidebar: no upcoming meeting to add as a ${label}.`);
       return;
     }
     try {
       await action(event);
     } catch (error: unknown) {
-      console.error(`Calendar Meetings: could not add the ${label}`, error);
-      new Notice(`Calendar Meetings: could not add the ${label}.`);
+      console.error(`Simple Meeting Sidebar: could not add the ${label}`, error);
+      new Notice(`Simple Meeting Sidebar: could not add the ${label}.`);
     }
   }
 

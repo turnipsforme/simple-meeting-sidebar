@@ -69,7 +69,7 @@ export class MeetingService {
         );
         await this.dailyNotes.addMeetingReference(dailyNote, meetingLink);
       } catch (error) {
-        console.error("Calendar Meetings: meeting created, but daily note link failed", error);
+        console.error("Simple Meeting Sidebar: meeting created, but daily note link failed", error);
         warning = "The meeting note was created, but its link could not be added to today's daily note.";
       }
     }

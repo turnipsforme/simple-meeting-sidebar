@@ -4,38 +4,40 @@
 
 /* Hide the sidebar tab icon and its separator for this view; the in-view pill replaces them. */
 .workspace-tab-header[data-type="simple-meeting-sidebar-view"] {
-  display: none !important;
+  display: none;
 }
 
 /* Remove every divider around this view so only its contents and the pill are visible. */
-.workspace-tabs:has(.workspace-leaf-content[data-type="simple-meeting-sidebar-view"]) .workspace-tab-header-container {
-  display: none !important;
+body .workspace-tabs.wcm-view-tabs > .workspace-tab-header-container {
+  display: none;
 }
 
-.workspace-tabs:has(.workspace-leaf-content[data-type="simple-meeting-sidebar-view"]),
-.workspace-leaf:has(.workspace-leaf-content[data-type="simple-meeting-sidebar-view"]),
-.workspace-leaf-content[data-type="simple-meeting-sidebar-view"] {
-  border-top: none !important;
-  border-bottom: none !important;
-  border-left: none !important;
-  border-right: none !important;
-  box-shadow: none !important;
+body .workspace-tabs.wcm-view-tabs,
+body .workspace-leaf.wcm-view-leaf,
+body .workspace-leaf-content.wcm-view-content {
+  border-top: none;
+  border-bottom: none;
+  border-left: none;
+  border-right: none;
+  box-shadow: none;
 }
 
 /* Kill the divider drawn by the neighboring pane directly above ours. */
-.workspace-split.mod-right-split .workspace-tabs:has(~ .workspace-tabs .workspace-leaf-content[data-type="simple-meeting-sidebar-view"]),
-.workspace-split.mod-right-split .workspace-leaf:has(~ .workspace-leaf .workspace-leaf-content[data-type="simple-meeting-sidebar-view"]),
-.workspace-split.mod-right-split .workspace-tabs:has(.workspace-leaf-content[data-type="simple-meeting-sidebar-view"]) .workspace-leaf,
-.workspace-split.mod-right-split .workspace-tabs:has(.workspace-leaf-content[data-type="simple-meeting-sidebar-view"])
-  ~ .workspace-split
-  .workspace-leaf {
-  border-top: none !important;
-  border-bottom: none !important;
-  box-shadow: none !important;
+body .workspace-split.mod-right-split .wcm-borderless-neighbor,
+body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
+  border-top: none;
+  border-bottom: none;
+  box-shadow: none;
 }
 
 .workspace-leaf-content[data-type="simple-meeting-sidebar-view"] {
   position: relative;
+}
+
+.wcm-settings-content {
+  display: block;
+  padding: 0;
+  border: 0;
 }
 
 .wcm-pill {

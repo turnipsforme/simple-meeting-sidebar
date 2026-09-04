@@ -1,14 +1,14 @@
 import { ItemView, Modal, Notice, TFile, type App, type WorkspaceLeaf } from "obsidian";
 import type { CalendarEvent } from "./models";
 
-export const CALENDAR_MEETINGS_VIEW = "simple-meeting-sidebar-view";
+export const SIMPLE_MEETING_SIDEBAR_VIEW = "simple-meeting-sidebar-view";
 
 export interface CalendarEventGroups {
   today: CalendarEvent[];
   yesterday: CalendarEvent[];
 }
 
-export interface CalendarMeetingsController {
+export interface SimpleMeetingSidebarController {
   getTodayEvents(): CalendarEvent[];
   getTodayAndYesterdayEvents(): CalendarEventGroups;
   getCachedDate(): string;
@@ -25,15 +25,16 @@ export interface CalendarMeetingsController {
 
 type EventActionRunner = (event: CalendarEvent, action: () => Promise<void>) => void;
 
-export class CalendarMeetingsView extends ItemView {
+export class SimpleMeetingSidebarView extends ItemView {
   private readonly busyEvents = new Set<string>();
+  private readonly decoratedWorkspaceElements = new Set<HTMLElement>();
 
-  constructor(leaf: WorkspaceLeaf, private readonly controller: CalendarMeetingsController) {
+  constructor(leaf: WorkspaceLeaf, private readonly controller: SimpleMeetingSidebarController) {
     super(leaf);
   }
 
   getViewType(): string {
-    return CALENDAR_MEETINGS_VIEW;
+    return SIMPLE_MEETING_SIDEBAR_VIEW;
   }
 
   getDisplayText(): string {
@@ -45,8 +46,61 @@ export class CalendarMeetingsView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    this.decorateWorkspace();
     this.renderPill();
     this.render();
+  }
+
+  async onClose(): Promise<void> {
+    this.clearWorkspaceDecorations();
+  }
+
+  private decorateWorkspace(): void {
+    this.clearWorkspaceDecorations();
+    const content = this.containerEl.closest<HTMLElement>(".workspace-leaf-content");
+    if (!content) return;
+
+    this.addWorkspaceDecoration(content, "wcm-view-content");
+    const leaf = content.closest<HTMLElement>(".workspace-leaf");
+    const tabs = content.closest<HTMLElement>(".workspace-tabs");
+    if (leaf) this.addWorkspaceDecoration(leaf, "wcm-view-leaf");
+    if (!tabs) return;
+
+    this.addWorkspaceDecoration(tabs, "wcm-view-tabs");
+    for (const nestedLeaf of tabs.querySelectorAll<HTMLElement>(".workspace-leaf")) {
+      this.addWorkspaceDecoration(nestedLeaf, "wcm-borderless-neighbor");
+    }
+
+    for (let sibling = tabs.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
+      if (!sibling.instanceOf(HTMLElement)) continue;
+      this.addWorkspaceDecoration(sibling, "wcm-borderless-neighbor");
+    }
+
+    if (leaf) {
+      for (let sibling = leaf.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
+        if (!sibling.instanceOf(HTMLElement)) continue;
+        this.addWorkspaceDecoration(sibling, "wcm-borderless-neighbor");
+      }
+    }
+
+    for (let sibling = tabs.nextElementSibling; sibling; sibling = sibling.nextElementSibling) {
+      if (!sibling.instanceOf(HTMLElement) || !sibling.matches(".workspace-split")) continue;
+      for (const nestedLeaf of sibling.querySelectorAll<HTMLElement>(".workspace-leaf")) {
+        this.addWorkspaceDecoration(nestedLeaf, "wcm-borderless-neighbor");
+      }
+    }
+  }
+
+  private addWorkspaceDecoration(element: HTMLElement, className: string): void {
+    element.addClass(className);
+    this.decoratedWorkspaceElements.add(element);
+  }
+
+  private clearWorkspaceDecorations(): void {
+    for (const element of this.decoratedWorkspaceElements) {
+      element.removeClass("wcm-view-content", "wcm-view-leaf", "wcm-view-tabs", "wcm-borderless-neighbor");
+    }
+    this.decoratedWorkspaceElements.clear();
   }
 
   /** Minimalist pill that replaces the tab icon/separator: click toggles the sidebar, drag moves it up/down. */
@@ -55,7 +109,7 @@ export class CalendarMeetingsView extends ItemView {
     const pill = existing instanceof HTMLElement
       ? existing
       : this.containerEl.createDiv({ cls: "wcm-pill" });
-    pill.setAttribute("aria-label", "Drag to move up/down · Click to refresh today's meetings");
+    pill.setAttribute("aria-label", "Drag to move up/down · click to refresh today's meetings");
     pill.setAttr("title", "Simple Meeting Sidebar: drag to reposition, click to refresh today's meetings");
 
     let startY = 0;
@@ -148,7 +202,7 @@ export class CalendarEventsModal extends Modal {
   private readonly busyEvents = new Set<string>();
   private opened = false;
 
-  constructor(app: App, private readonly controller: CalendarMeetingsController) {
+  constructor(app: App, private readonly controller: SimpleMeetingSidebarController) {
     super(app);
   }
 
@@ -226,7 +280,7 @@ export class CalendarEventsModal extends Modal {
 function renderEventRow(
   list: HTMLElement,
   event: CalendarEvent,
-  controller: CalendarMeetingsController,
+  controller: SimpleMeetingSidebarController,
   busyEvents: ReadonlySet<string>,
   runAction: EventActionRunner,
 ): void {

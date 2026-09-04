@@ -1,6 +1,6 @@
 import type { CalendarEvent, RefreshSchedule, StoredPluginSettings } from "./models";
 import { DEFAULT_SETTINGS } from "./models";
-import { makeEventKey, normalizeVaultFolder, parseDailyTime, stripEmojis } from "./utils";
+import { makeEventKey, normalizeVaultFolder, parseDailyTime, replaceControlCharacters, stripEmojis } from "./utils";
 
 const REFRESH_SCHEDULES = new Set<RefreshSchedule>(["manual", "60", "360", "720", "daily", "weekly"]);
 const MAX_CACHED_EVENTS = 10_000;
@@ -112,7 +112,7 @@ function readString(value: unknown): string {
 }
 
 function compactSingleLine(value: string, maximumLength: number): string {
-  return value.replace(/[\u0000-\u001F\u007F]+/g, " ").replace(/\s+/g, " ").trim().slice(0, maximumLength).trim();
+  return replaceControlCharacters(value).replace(/\s+/g, " ").trim().slice(0, maximumLength).trim();
 }
 
 function isDailyTime(value: unknown): value is string {

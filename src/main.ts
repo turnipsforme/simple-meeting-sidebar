@@ -13,20 +13,20 @@ import {
 } from "./models";
 import { PeopleIndex } from "./people-index";
 import { automaticRefreshIsDue } from "./schedule";
-import { CalendarMeetingsSettingTab } from "./settings";
+import { SimpleMeetingSidebarSettingTab } from "./settings";
 import { loadPluginSettings } from "./settings-state";
 import { localDateKey } from "./utils";
 import {
-  CALENDAR_MEETINGS_VIEW,
+  SIMPLE_MEETING_SIDEBAR_VIEW,
   CalendarEventsModal,
-  CalendarMeetingsView,
+  SimpleMeetingSidebarView,
   type CalendarEventGroups,
-  type CalendarMeetingsController,
+  type SimpleMeetingSidebarController,
 } from "./view";
 
 const AUTOMATIC_REFRESH_POLL_MS = 5 * 60_000;
 
-export default class CalendarMeetingsPlugin extends Plugin implements CalendarMeetingsController {
+export default class SimpleMeetingSidebarPlugin extends Plugin implements SimpleMeetingSidebarController {
   declare settings: StoredPluginSettings;
   peopleIndex!: PeopleIndex;
 
@@ -55,10 +55,10 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
     );
 
     this.registerView(
-      CALENDAR_MEETINGS_VIEW,
-      (leaf: WorkspaceLeaf) => new CalendarMeetingsView(leaf, this),
+      SIMPLE_MEETING_SIDEBAR_VIEW,
+      (leaf: WorkspaceLeaf) => new SimpleMeetingSidebarView(leaf, this),
     );
-    this.addSettingTab(new CalendarMeetingsSettingTab(this.app, this));
+    this.addSettingTab(new SimpleMeetingSidebarSettingTab(this.app, this));
 
     this.addCommand({
       id: "refresh-todays-meetings",
@@ -116,11 +116,6 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
       }
       this.configureSchedule();
     });
-  }
-
-  onunload(): void {
-    this.clearSchedule();
-    this.app.workspace.detachLeavesOfType(CALENDAR_MEETINGS_VIEW);
   }
 
   isRefreshing(): boolean {
@@ -342,19 +337,21 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
   }
 
   private async activateView(): Promise<void> {
-    const existing = this.app.workspace.getLeavesOfType(CALENDAR_MEETINGS_VIEW)[0];
+    const existing = this.app.workspace.getLeavesOfType(SIMPLE_MEETING_SIDEBAR_VIEW)[0];
     if (existing) {
-      await this.app.workspace.revealLeaf(existing);
+      this.expandRightSidebar();
+      this.app.workspace.setActiveLeaf(existing, { focus: true });
       return;
     }
     const leaf = this.app.workspace.getRightLeaf(true);
     if (!leaf) return;
-    await leaf.setViewState({ type: CALENDAR_MEETINGS_VIEW, active: true });
-    await this.app.workspace.revealLeaf(leaf);
+    await leaf.setViewState({ type: SIMPLE_MEETING_SIDEBAR_VIEW, active: true });
+    this.expandRightSidebar();
+    this.app.workspace.setActiveLeaf(leaf, { focus: true });
   }
 
   async toggleSidebar(): Promise<void> {
-    const existing = this.app.workspace.getLeavesOfType(CALENDAR_MEETINGS_VIEW)[0];
+    const existing = this.app.workspace.getLeavesOfType(SIMPLE_MEETING_SIDEBAR_VIEW)[0];
     if (!existing) {
       await this.activateView();
       return;
@@ -362,18 +359,22 @@ export default class CalendarMeetingsPlugin extends Plugin implements CalendarMe
     const split = this.app.workspace.rightSplit as unknown as
       | { collapsed?: boolean; collapse?: () => void; expand?: () => void; width?: number }
       | undefined;
-    const visible = (existing.view.containerEl as HTMLElement).isShown();
-    if (visible && split?.collapsed !== true) {
+    if (split?.collapsed !== true) {
       split?.collapse?.();
     } else {
       split?.expand?.();
-      await this.app.workspace.revealLeaf(existing);
+      this.app.workspace.setActiveLeaf(existing, { focus: true });
     }
   }
 
+  private expandRightSidebar(): void {
+    const split = this.app.workspace.rightSplit as unknown as { expand?: () => void } | undefined;
+    split?.expand?.();
+  }
+
   renderViews(): void {
-    for (const leaf of this.app.workspace.getLeavesOfType(CALENDAR_MEETINGS_VIEW)) {
-      if (leaf.view instanceof CalendarMeetingsView) leaf.view.render();
+    for (const leaf of this.app.workspace.getLeavesOfType(SIMPLE_MEETING_SIDEBAR_VIEW)) {
+      if (leaf.view instanceof SimpleMeetingSidebarView) leaf.view.render();
     }
   }
 }

@@ -28,15 +28,22 @@ export function normalizeVaultFolder(value: string, fallback: string): string {
 export function stripEmojis(value: string): string {
   return value
     .replace(EMOJI_RE, "")
-    .replace(/[\u200D\uFE0E\uFE0F]/g, "")
+    .split("\u200D").join("")
+    .split("\uFE0E").join("")
+    .split("\uFE0F").join("")
     .replace(/\s+/g, " ")
     .trim();
 }
 
+export function replaceControlCharacters(value: string): string {
+  return Array.from(value, (character) => {
+    const codePoint = character.codePointAt(0);
+    return codePoint !== undefined && (codePoint <= 0x1F || codePoint === 0x7F) ? " " : character;
+  }).join("");
+}
+
 export function sanitizeMeetingTitle(value: string): string {
-  const cleaned = value
-    .normalize("NFC")
-    .replace(/[\u0000-\u001F\u007F]/g, " ")
+  const cleaned = replaceControlCharacters(value.normalize("NFC"))
     .replace(/[\\/:*?"<>|#[\]^]/g, "-")
     .replace(/\s+/g, " ")
     .replace(/^[.\s-]+|[.\s]+$/g, "")
@@ -125,7 +132,7 @@ export function makeEventKey(event: {
 
 export function insertTaskIntoDailyNote(content: string, title: string): TextUpdateResult {
   const { lines, eol } = splitLines(content);
-  const safeTitle = title.replace(/[\u0000-\u001F\u007F]+/g, " ").replace(/\s+/g, " ").trim()
+  const safeTitle = replaceControlCharacters(title).replace(/\s+/g, " ").trim()
     || "Untitled event";
   const taskLine = `- [ ] ${safeTitle}`;
   const taskPattern = new RegExp(`^\\s*-\\s*\\[[ xX-]\\]\\s*${escapeRegExp(safeTitle)}\\s*$`);

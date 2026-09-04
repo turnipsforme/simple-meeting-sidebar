@@ -1,4 +1,4 @@
-import { getAllTags, type App, type CachedMetadata, TFile } from "obsidian";
+import { getAllTags, type App, TFile } from "obsidian";
 import type { PersonMatch } from "./models";
 import { findLongestPersonKey, filterIgnoredGuests, normalizePersonText, normalizeVaultFolder } from "./utils";
 
@@ -77,7 +77,7 @@ export class PeopleIndex {
   }
 
   private getAliases(file: TFile): string[] {
-    const cache = this.app.metadataCache.getFileCache(file) as CachedMetadata | null;
+    const cache = this.app.metadataCache.getFileCache(file);
     const frontmatter = cache?.frontmatter as Record<string, unknown> | undefined;
     const raw = frontmatter?.aliases ?? frontmatter?.alias;
     if (typeof raw === "string") return raw.trim() ? [raw.trim()] : [];

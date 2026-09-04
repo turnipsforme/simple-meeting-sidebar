@@ -37,11 +37,16 @@ const DEFAULT_DAILY_SETTINGS: DailyNoteSettings = {
   template: "",
 };
 
+const obsidianMoment = moment as unknown as {
+  (): moment.Moment;
+  (input: string, format: string, strict: boolean): moment.Moment;
+};
+
 export class DailyNoteService {
   constructor(private readonly app: App) {}
 
   async getOrCreateToday(): Promise<TFile> {
-    const date = moment();
+    const date = obsidianMoment();
     const settings = this.getSettings();
     const path = this.buildPath(date.format(settings.format), settings.folder);
     const existing = this.app.vault.getAbstractFileByPath(path);
@@ -89,8 +94,8 @@ export class DailyNoteService {
     const dateText = folder && withoutExtension.startsWith(`${folder}/`)
       ? withoutExtension.slice(folder.length + 1)
       : file.basename;
-    const parsed = moment(dateText, settings.format, true);
-    return formatDailyNoteLinkLabel((parsed.isValid() ? parsed : moment()).toDate());
+    const parsed = obsidianMoment(dateText, settings.format, true);
+    return formatDailyNoteLinkLabel((parsed.isValid() ? parsed : obsidianMoment()).toDate());
   }
 
   private getSettings(): DailyNoteSettings {
@@ -139,7 +144,7 @@ export class DailyNoteService {
     const templateFile = this.findTemplate(settings.template);
     if (!templateFile) return "";
     const raw = await this.app.vault.cachedRead(templateFile);
-    const now = moment();
+    const now = obsidianMoment();
     const filename = date.format(settings.format);
 
     return raw

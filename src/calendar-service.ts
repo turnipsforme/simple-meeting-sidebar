@@ -7,7 +7,7 @@ import type { FileSystemAdapter, Plugin } from "obsidian";
 import calendarHelperBase64 from "calendar-helper-binary";
 import { installExecutableHelper } from "./helper-installer";
 import type { CalendarEvent } from "./models";
-import { makeEventKey, stripEmojis } from "./utils";
+import { makeEventKey, replaceControlCharacters, stripEmojis } from "./utils";
 
 const execFileAsync = promisify(execFile);
 const MAX_EVENTS = 10_000;
@@ -170,7 +170,7 @@ export class CalendarService {
 }
 
 function compactSingleLine(value: string, maximumLength: number): string {
-  return value.replace(/[\u0000-\u001F\u007F]+/g, " ").replace(/\s+/g, " ").trim().slice(0, maximumLength).trim();
+  return replaceControlCharacters(value).replace(/\s+/g, " ").trim().slice(0, maximumLength).trim();
 }
 
 function extractProcessError(error: unknown): string {

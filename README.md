@@ -54,15 +54,27 @@ obsidian://adv-uri?vault=YourVault&commandid=simple-meeting-sidebar%3Arefresh-to
 
 ## Privacy and permissions
 
-Simple Meeting Sidebar accesses Apple Calendar data outside your vault, including event titles, times, locations, notes, URLs, calendar names, and guest names. This data is processed locally on your Mac and saved only in the plugin's local settings cache. The plugin does not use network services, collect telemetry, or write to Apple Calendar.
+Simple Meeting Sidebar accesses Apple Calendar data outside your vault, including event titles, times, locations, calendar names, and guest names. It checks event URLs, locations, and notes only for the text `meet.google.com`; URLs and notes are not returned by the helper or saved by the plugin. Calendar data is processed locally on your Mac and cached only in the plugin's settings. The plugin does not use network services, collect telemetry, or write to Apple Calendar.
+
+## Apple Calendar helper
+
+Obsidian cannot read Apple Calendar directly, so the plugin includes a small native helper whose complete source is in [`helper/CalendarHelper.swift`](helper/CalendarHelper.swift). The release build embeds a universal Apple Silicon and Intel copy in `main.js`. When needed, the plugin writes that copy to its own `.obsidian/plugins/simple-meeting-sidebar/bin` folder, marks it executable, and launches it directly. It does not use a shell or run user-provided commands.
+
+The helper has three jobs:
+
+- Ask macOS for Calendar permission and report a clear error if access is denied.
+- List the names of available Apple calendars for the plugin settings.
+- Read occurrences from yesterday and today, returning only the event identifier, title, start and end times, all-day status, calendar name, optional location, optional attendee names, and whether a Google Meet link was found.
+
+The helper cannot create, edit, accept, decline, or delete calendar events. It cannot read files in your vault, make network requests, or run in the background without Obsidian. On macOS 14 and later, Apple labels the required EventKit permission as full Calendar access even though this helper only performs the read operations listed above. Some calendar providers may omit locations or attendee display names, so those details are not guaranteed to appear.
 
 ## Development
 
-Requirements: Node.js 20 or newer, macOS, and Xcode Command Line Tools.
+Requirements: Node.js 22 or newer. Rebuilding the native helper also requires macOS and Xcode Command Line Tools.
 
 ```bash
 npm install
 npm run check
 ```
 
-`npm run check` type-checks and bundles the plugin, builds and signs a universal Apple Silicon and Intel helper, creates the release folder, and runs the TypeScript and helper self-tests.
+`npm run check` lints, type-checks, bundles the reviewed helper, creates the release folder, and runs the TypeScript and helper self-tests. If `CalendarHelper.swift` changes, run `npm run build:helper` first to rebuild and ad-hoc sign the universal helper that release builds embed.

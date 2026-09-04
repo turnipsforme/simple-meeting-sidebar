@@ -4,7 +4,7 @@ set -euo pipefail
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SOURCE_PATH="$PLUGIN_ROOT/helper/CalendarHelper.swift"
 PLIST_PATH="$PLUGIN_ROOT/helper/Info.plist"
-OUTPUT_DIRECTORY="$PLUGIN_ROOT/bin"
+OUTPUT_DIRECTORY="$PLUGIN_ROOT/runtime"
 OUTPUT_PATH="$OUTPUT_DIRECTORY/calendar-helper"
 BUILD_DIRECTORY="$(mktemp -d)"
 
@@ -51,4 +51,4 @@ codesign --force --sign - \
   "$OUTPUT_PATH"
 chmod 755 "$OUTPUT_PATH"
 
-echo "Built universal Simple Meeting Sidebar helper at $OUTPUT_PATH"
+echo "Built the universal Simple Meeting Sidebar helper used by release builds at $OUTPUT_PATH"

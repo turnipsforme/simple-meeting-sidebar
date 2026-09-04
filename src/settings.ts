@@ -1,19 +1,32 @@
-import { PluginSettingTab, Setting, type App } from "obsidian";
-import type CalendarMeetingsPlugin from "./main";
+import { PluginSettingTab, Setting, type App, type SettingDefinitionItem } from "obsidian";
+import type SimpleMeetingSidebarPlugin from "./main";
 import type { RefreshSchedule } from "./models";
 import { normalizeVaultFolder, parseDailyTime } from "./utils";
 
-export class CalendarMeetingsSettingTab extends PluginSettingTab {
-  constructor(app: App, private readonly calendarPlugin: CalendarMeetingsPlugin) {
+export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
+  constructor(app: App, private readonly calendarPlugin: SimpleMeetingSidebarPlugin) {
     super(app, calendarPlugin);
   }
 
-  display(): void {
-    const { containerEl } = this;
-    containerEl.empty();
-    containerEl.createEl("h2", { text: "Simple Meeting Sidebar" });
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    return [{
+      name: "Simple Meeting Sidebar settings",
+      aliases: ["events", "calendars", "meetings", "people", "refresh", "Advanced URI"],
+      render: (setting) => {
+        setting.settingEl.empty();
+        setting.settingEl.addClass("wcm-settings-content");
+        this.renderSettings(setting.settingEl);
+      },
+    }];
+  }
 
-    containerEl.createEl("h3", { text: "Events" });
+  display(): void {
+    this.renderSettings(this.containerEl);
+  }
+
+  private renderSettings(containerEl: HTMLElement): void {
+    containerEl.empty();
+    new Setting(containerEl).setName("Events").setHeading();
     containerEl.createEl("p", {
       text: "Choose which Apple calendars contribute events. All calendars are used until you turn one off.",
       cls: "setting-item-description",
@@ -36,7 +49,7 @@ export class CalendarMeetingsSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Meetings folder")
-      .setDesc("Meeting notes are created here. The default is Meetings.")
+      .setDesc("Meeting notes are created here. The default folder name is shown below.")
       .addText((text) => text
         .setPlaceholder("Meetings")
         .setValue(this.calendarPlugin.settings.meetingsFolder)
@@ -82,7 +95,7 @@ export class CalendarMeetingsSettingTab extends PluginSettingTab {
       .setName("Ignored people")
       .setDesc("People who should never be linked in meeting notes, matched against event guests by first or full name. Comma separated; capitalization doesn't matter.")
       .addText((text) => text
-        .setPlaceholder("e.g. Mish, Wren, Dana Smith")
+        .setPlaceholder("E.g. Mish, Wren, Dana Smith")
         .setValue(this.calendarPlugin.settings.ignoredPeople)
         .onChange(async (value) => {
           this.calendarPlugin.settings.ignoredPeople = value;
@@ -136,7 +149,7 @@ export class CalendarMeetingsSettingTab extends PluginSettingTab {
           }
         }));
 
-    containerEl.createEl("h3", { text: "Advanced URI integration" });
+    new Setting(containerEl).setName("Advanced URI integration").setHeading();
     containerEl.createDiv({
       cls: "setting-item-description wcm-uri-help",
       text: "If the Advanced URI plugin is installed you can trigger these commands from links, shortcuts, or other apps using: obsidian://adv-uri?vault=YourVault&commandid=simple-meeting-sidebar%3Arefresh-todays-meetings. Replace commandid with any of the exposed commands below; the : must be encoded as %3A.",

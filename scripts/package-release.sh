@@ -9,7 +9,7 @@ mkdir -p "$RELEASE_ROOT/bin"
 cp -f "$PLUGIN_ROOT/main.js" "$RELEASE_ROOT/main.js"
 cp -f "$PLUGIN_ROOT/manifest.json" "$RELEASE_ROOT/manifest.json"
 cp -f "$PLUGIN_ROOT/styles.css" "$RELEASE_ROOT/styles.css"
-cp -f "$PLUGIN_ROOT/bin/calendar-helper" "$RELEASE_ROOT/bin/calendar-helper"
+cp -f "$PLUGIN_ROOT/runtime/calendar-helper" "$RELEASE_ROOT/bin/calendar-helper"
 chmod 755 "$RELEASE_ROOT/bin/calendar-helper"
 
 echo "Packaged install-ready plugin at $RELEASE_ROOT"

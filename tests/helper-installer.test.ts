@@ -7,7 +7,7 @@ import test from "node:test";
 import { installExecutableHelper } from "../src/helper-installer";
 
 test("embedded helper is installed in the expected folder with executable permissions", async () => {
-  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "calendar-meetings-helper-"));
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "simple-meeting-sidebar-helper-"));
   const helperPath = path.join(temporaryDirectory, "bin", "calendar-helper");
   const expectedBytes = Buffer.from("embedded helper bytes");
 
@@ -23,7 +23,7 @@ test("embedded helper is installed in the expected folder with executable permis
 });
 
 test("install replaces a non-executable helper atomically", async () => {
-  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "calendar-meetings-helper-"));
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "simple-meeting-sidebar-helper-"));
   const helperPath = path.join(temporaryDirectory, "bin", "calendar-helper");
   const expectedBytes = Buffer.from("replacement helper bytes");
 

@@ -12,7 +12,7 @@ const helperBinaryPlugin = {
       namespace: "calendar-helper",
     }));
     build.onLoad({ filter: /.*/, namespace: "calendar-helper" }, async () => {
-      const helper = await readFile(new URL("./bin/calendar-helper", import.meta.url));
+      const helper = await readFile(new URL("./runtime/calendar-helper", import.meta.url));
       return {
         contents: `export default ${JSON.stringify(helper.toString("base64"))};`,
         loader: "js",

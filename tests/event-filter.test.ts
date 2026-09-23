@@ -67,3 +67,19 @@ function makeEvent(id: string, calendar: string, hasGoogleMeet: boolean): Calend
     hasGoogleMeet,
   };
 }
+
+test("meeting-link filtering includes Zoom and Teams helper results and legacy Meet caches", () => {
+  const zoom = { ...events[1]!, id: "zoom", hasMeetingLink: true };
+  const teams = { ...events[1]!, id: "teams", hasMeetingLink: true };
+  assert.deepEqual(filterCalendarEvents([zoom, teams, ...events], ["Work"], true).map((event) => event.id),
+    ["zoom", "teams", "work-meet"]);
+});
+
+test("notification dismissal is independent of sidebar hiding and reset by manual refresh", () => {
+  const fresh = events[0]!;
+  const previous = { ...fresh, notificationHidden: true };
+  const automatic = mergeRefreshedEventState([fresh], [previous], true)[0]!;
+  assert.equal(automatic.notificationHidden, true);
+  assert.equal(automatic.sidebarHidden, undefined);
+  assert.deepEqual(mergeRefreshedEventState([fresh], [previous], false), [fresh]);
+});

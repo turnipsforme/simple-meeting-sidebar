@@ -1,31 +1,22 @@
 import { execFile } from "node:child_process";
-import { access, chmod } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { FileSystemAdapter, Plugin } from "obsidian";
 import calendarHelperBase64 from "calendar-helper-binary";
-import { installExecutableHelper } from "./helper-installer";
+import { ensureExecutableHelper } from "./helper-installer";
 import type { CalendarEvent } from "./models";
-import { makeEventKey, replaceControlCharacters, stripEmojis } from "./utils";
+import { replaceControlCharacters } from "./utils";
+import { readCalendarEvent } from "./settings-state";
 
 const execFileAsync = promisify(execFile);
 const MAX_EVENTS = 10_000;
 const MAX_CALENDARS = 1_000;
 
-interface HelperEvent {
-  id?: unknown;
-  title?: unknown;
-  start?: unknown;
-  end?: unknown;
-  allDay?: unknown;
-  calendar?: unknown;
-  hasGoogleMeet?: unknown;
-  location?: unknown;
-  guests?: unknown;
-}
-
 export class CalendarService {
+  private helperReady: Promise<string> | null = null;
+
   constructor(private readonly plugin: Plugin) {}
 
   async fetchTodayAndYesterday(): Promise<CalendarEvent[]> {
@@ -48,7 +39,7 @@ export class CalendarService {
 
     const events: CalendarEvent[] = [];
     for (const rawValue of decoded) {
-      const event = this.validateEvent(rawValue);
+      const event = readCalendarEvent(rawValue, false);
       if (event) events.push(event);
     }
 
@@ -79,43 +70,6 @@ export class CalendarService {
     return [...new Set(calendars)].sort((left, right) => left.localeCompare(right));
   }
 
-  private validateEvent(value: unknown): CalendarEvent | null {
-    if (!value || typeof value !== "object") return null;
-    const raw = value as HelperEvent;
-    if (typeof raw.title !== "string" || typeof raw.start !== "string" || typeof raw.end !== "string") {
-      return null;
-    }
-    if (!Number.isFinite(Date.parse(raw.start)) || !Number.isFinite(Date.parse(raw.end))) return null;
-
-    const title = stripEmojis(compactSingleLine(raw.title, 500)) || "Untitled event";
-    const base = {
-      id: typeof raw.id === "string" ? raw.id.slice(0, 500) : "",
-      title,
-      start: raw.start,
-      end: raw.end,
-      allDay: raw.allDay === true,
-      calendar: typeof raw.calendar === "string" ? compactSingleLine(raw.calendar, 200) : "",
-      hasGoogleMeet: raw.hasGoogleMeet === true,
-    };
-    const location = typeof raw.location === "string" && raw.location.trim()
-      ? compactSingleLine(raw.location, 500)
-      : undefined;
-    const guests = Array.isArray(raw.guests)
-      ? raw.guests
-        .filter((entry): entry is string => typeof entry === "string")
-        .map((entry) => compactSingleLine(entry, 200))
-        .filter(Boolean)
-        .slice(0, 200)
-      : undefined;
-
-    return {
-      ...base,
-      key: makeEventKey(base),
-      ...(location ? { location } : {}),
-      ...(guests && guests.length > 0 ? { guests } : {}),
-    };
-  }
-
   private async runHelper(arguments_: string[]): Promise<string> {
     const helperPath = await this.getHelperPath();
     try {
@@ -132,7 +86,15 @@ export class CalendarService {
     }
   }
 
-  private async getHelperPath(): Promise<string> {
+  private getHelperPath(): Promise<string> {
+    this.helperReady ??= this.prepareHelper().catch((error: unknown) => {
+      this.helperReady = null;
+      throw error;
+    });
+    return this.helperReady;
+  }
+
+  private async prepareHelper(): Promise<string> {
     const adapter = this.plugin.app.vault.adapter as FileSystemAdapter;
     if (typeof adapter.getBasePath !== "function") {
       throw new Error("This plugin requires a local macOS vault.");
@@ -144,23 +106,7 @@ export class CalendarService {
     const helperPath = path.join(adapter.getBasePath(), relativePluginDirectory, "bin", "calendar-helper");
 
     try {
-      await access(helperPath, fsConstants.X_OK);
-      return helperPath;
-    } catch {
-      // ZIP extraction and some plugin installers can preserve the file while
-      // dropping its executable bit. Repair that before writing a new copy.
-      try {
-        await chmod(helperPath, 0o755);
-        await access(helperPath, fsConstants.X_OK);
-        return helperPath;
-      } catch {
-        // The standard Obsidian release consists of main.js, manifest.json,
-        // and styles.css, so install the helper embedded in main.js.
-      }
-    }
-
-    try {
-      await installExecutableHelper(helperPath, calendarHelperBase64);
+      await ensureExecutableHelper(helperPath, calendarHelperBase64);
       await access(helperPath, fsConstants.X_OK);
     } catch {
       throw new Error("The bundled Apple Calendar helper could not be installed. Reinstall the plugin and check that its folder is writable.");

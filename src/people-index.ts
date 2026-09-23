@@ -1,6 +1,6 @@
 import { getAllTags, type App, TFile } from "obsidian";
 import type { PersonMatch } from "./models";
-import { findLongestPersonKey, filterIgnoredGuests, normalizePersonText, normalizeVaultFolder } from "./utils";
+import { findLongestPersonKey, filterIgnoredGuests, isIgnoredPerson, parseIgnoredPeople, normalizePersonText, normalizeVaultFolder } from "./utils";
 
 interface IndexedPerson {
   file: TFile;
@@ -45,9 +45,11 @@ export class PeopleIndex {
 
   private rebuild(): void {
     const folder = normalizeVaultFolder(this.getFolder(), "People");
+    const ignored = parseIgnoredPeople(this.getIgnoredPeople());
     const people = this.app.vault
       .getMarkdownFiles()
-      .filter((file) => file.path.startsWith(`${folder}/`) && this.hasPersonTag(file))
+      .filter((file) => file.path.startsWith(`${folder}/`)
+        && !isIgnoredPerson(file.basename, ignored) && this.hasPersonTag(file))
       .sort((left, right) => left.path.localeCompare(right.path));
 
     const nextLookup = new Map<string, IndexedPerson>();
@@ -60,6 +62,7 @@ export class PeopleIndex {
     if (this.shouldUseAliases()) {
       for (const file of people) {
         for (const alias of this.getAliases(file)) {
+          if (isIgnoredPerson(alias, ignored)) continue;
           maximumTokens = this.addCandidate(nextLookup, alias, file, true, maximumTokens);
         }
       }

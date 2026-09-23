@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_SETTINGS } from "../src/models";
-import { loadPluginSettings } from "../src/settings-state";
+import { loadPluginSettings, readCalendarEvent } from "../src/settings-state";
 import { makeEventKey } from "../src/utils";
 
 test("settings loader uses safe defaults for missing and malformed values", () => {
@@ -11,6 +11,7 @@ test("settings loader uses safe defaults for missing and malformed values", () =
     considerAliases: "yes",
     selectedCalendars: "Work",
     onlyGoogleMeetEvents: "yes",
+    monochromeNotifications: "true",
     refreshSchedule: "constantly",
     dailyRefreshTime: "25:99",
     cachedDate: "2026-02-30",
@@ -38,7 +39,7 @@ test("settings loader normalizes user folders and accepts known refresh values",
   assert.equal(loaded.peopleFolder, "People/Clients");
   assert.equal(loaded.considerAliases, false);
   assert.deepEqual(loaded.selectedCalendars, ["Personal", "Work"]);
-  assert.equal(loaded.onlyGoogleMeetEvents, true);
+  assert.equal(loaded.onlyMeetingLinkEvents, true);
   assert.equal(loaded.addMeetingNotesToDailyNote, false);
   assert.equal(loaded.refreshSchedule, "360");
   assert.equal(loaded.dailyRefreshTime, "07:45");
@@ -98,4 +99,39 @@ test("existing settings do not trigger sidebar setup after upgrading", () => {
 test("an incomplete sidebar setup can be retried", () => {
   const loaded = loadPluginSettings({ sidebarInitialized: false });
   assert.equal(loaded.sidebarInitialized, false);
+});
+
+test("notifications default to neutral colors, migrate the Meet filter, and respect saved choices", () => {
+  const defaults = loadPluginSettings({});
+  assert.equal(defaults.meetingNotifications, false);
+  assert.equal(defaults.monochromeNotifications, true);
+  assert.equal(loadPluginSettings({ monochromeNotifications: false }).monochromeNotifications, false);
+  assert.equal(defaults.includeMeetingTimeInTask, false);
+  assert.equal(loadPluginSettings({ onlyGoogleMeetEvents: true }).onlyMeetingLinkEvents, true);
+  const current = loadPluginSettings({ onlyGoogleMeetEvents: true, onlyMeetingLinkEvents: false,
+    meetingNotifications: true, monochromeNotifications: true, includeMeetingTimeInTask: true });
+  assert.equal(current.onlyMeetingLinkEvents, false);
+  assert.equal(current.meetingNotifications, true);
+  assert.equal(current.monochromeNotifications, true);
+  assert.equal(current.includeMeetingTimeInTask, true);
+});
+
+test("meeting-link detection and notification dismissal survive reloads", () => {
+  const result = loadPluginSettings({ cachedEvents: [{ id: "zoom", title: "Zoom meeting",
+    start: "2026-09-20T10:00:00Z", end: "2026-09-20T11:00:00Z", calendar: "Work",
+    hasMeetingLink: true, notificationHidden: true }] });
+  assert.equal(result.cachedEvents[0]?.hasMeetingLink, true);
+  assert.equal(result.cachedEvents[0]?.notificationHidden, true);
+  assert.equal(result.cachedEvents[0]?.sidebarHidden, undefined);
+});
+
+test("fresh helper events cannot import saved action or dismissal state", () => {
+  const result = readCalendarEvent({ id: "1", title: "Meeting", start: "2026-09-20T10:00:00Z",
+    end: "2026-09-20T11:00:00Z", taskAdded: true, sidebarHidden: true,
+    notificationHidden: true, meetingNotePath: "Meetings/Meeting.md", hasMeetingLink: true }, false);
+  assert.equal(result?.hasMeetingLink, true);
+  assert.equal(result?.taskAdded, undefined);
+  assert.equal(result?.sidebarHidden, undefined);
+  assert.equal(result?.notificationHidden, undefined);
+  assert.equal(result?.meetingNotePath, undefined);
 });

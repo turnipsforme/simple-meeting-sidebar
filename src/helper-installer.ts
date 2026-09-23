@@ -1,4 +1,4 @@
-import { chmod, mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -21,4 +21,14 @@ export async function installExecutableHelper(helperPath: string, bundledHelperB
     await rm(temporaryPath, { force: true }).catch(() => undefined);
     throw error;
   }
+}
+
+/** Check once per plugin load, so upgrades replace old helpers without rewriting every refresh. */
+export async function ensureExecutableHelper(helperPath: string, bundledHelperBase64: string): Promise<void> {
+  const installed = await readFile(helperPath).catch(() => null);
+  if (installed?.equals(Buffer.from(bundledHelperBase64, "base64"))) {
+    await chmod(helperPath, EXECUTABLE_MODE);
+    return;
+  }
+  await installExecutableHelper(helperPath, bundledHelperBase64);
 }

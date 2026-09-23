@@ -38,3 +38,22 @@ test("install replaces a non-executable helper atomically", async () => {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
 });
+
+test("helper upgrades replace old executable bytes and leave current copies untouched", async () => {
+  const { ensureExecutableHelper } = await import("../src/helper-installer");
+  const directory = await mkdtemp(path.join(os.tmpdir(), "simple-meeting-sidebar-upgrade-"));
+  const helperPath = path.join(directory, "calendar-helper");
+  const bundled = Buffer.from("new helper");
+  try {
+    await writeFile(helperPath, "old helper", { mode: 0o755 });
+    await ensureExecutableHelper(helperPath, bundled.toString("base64"));
+    assert.deepEqual(await readFile(helperPath), bundled);
+    const before = await stat(helperPath);
+    await ensureExecutableHelper(helperPath, bundled.toString("base64"));
+    const after = await stat(helperPath);
+    assert.equal(after.ino, before.ino);
+    assert.equal(after.mtimeMs, before.mtimeMs);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

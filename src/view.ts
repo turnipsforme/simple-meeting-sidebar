@@ -1,5 +1,7 @@
-import { ItemView, Modal, Notice, TFile, type App, type WorkspaceLeaf } from "obsidian";
+import { ItemView, Modal, TFile, setIcon, type App, type WorkspaceLeaf } from "obsidian";
 import type { CalendarEvent } from "./models";
+import { formatMeetingTime } from "./utils";
+import { RefreshStatus } from "./refresh-status";
 
 export const SIMPLE_MEETING_SIDEBAR_VIEW = "simple-meeting-sidebar-view";
 
@@ -14,20 +16,25 @@ export interface SimpleMeetingSidebarController {
   getCachedDate(): string;
   getLastError(): string;
   isRefreshing(): boolean;
-  refreshToday(manual?: boolean): Promise<void>;
+  shouldAnimateRefreshStatus(): boolean;
+  refreshToday(manual?: boolean, animateStatus?: boolean): Promise<void>;
   toggleSidebar(): Promise<void>;
   getPillOffset(): number;
   setPillOffset(value: number): Promise<void>;
   addEventAsTask(event: CalendarEvent): Promise<void>;
   createEventMeeting(event: CalendarEvent): Promise<void>;
+  dismissEvent(event: CalendarEvent, notificationOnly?: boolean, animateLayout?: boolean): Promise<void>;
+  isEventBusy(key: string): boolean;
+  runEventAction(event: CalendarEvent, action: () => Promise<void>): Promise<void>;
+  subscribe(listener: () => void): () => void;
   app: App;
 }
 
-type EventActionRunner = (event: CalendarEvent, action: () => Promise<void>) => void;
-
 export class SimpleMeetingSidebarView extends ItemView {
-  private readonly busyEvents = new Set<string>();
   private readonly decoratedWorkspaceElements = new Set<HTMLElement>();
+  private refreshStatus: RefreshStatus | undefined;
+  private body: HTMLElement | undefined;
+  private pill: HTMLElement | undefined;
 
   constructor(leaf: WorkspaceLeaf, private readonly controller: SimpleMeetingSidebarController) {
     super(leaf);
@@ -53,6 +60,10 @@ export class SimpleMeetingSidebarView extends ItemView {
 
   async onClose(): Promise<void> {
     this.clearWorkspaceDecorations();
+    this.refreshStatus?.dispose();
+    this.refreshStatus = undefined;
+    this.body = undefined;
+    this.pill = undefined;
   }
 
   private decorateWorkspace(): void {
@@ -109,6 +120,7 @@ export class SimpleMeetingSidebarView extends ItemView {
     const pill = existing instanceof HTMLElement
       ? existing
       : this.containerEl.createDiv({ cls: "wcm-pill" });
+    this.pill = pill;
     pill.setAttribute("aria-label", "Drag to move up/down · click to refresh today's meetings");
     pill.setAttr("title", "Simple Meeting Sidebar: drag to reposition, click to refresh today's meetings");
 
@@ -142,7 +154,7 @@ export class SimpleMeetingSidebarView extends ItemView {
       if (!dragging) return;
       dragging = false;
       if (!moved) {
-        void this.controller.refreshToday(false).catch(() => undefined);
+        void this.controller.refreshToday(false, true).catch(() => undefined);
         return;
       }
       const offset = Math.min(800, Math.max(0, Number.parseInt(this.contentEl.style.marginTop || "0", 10)));
@@ -157,13 +169,15 @@ export class SimpleMeetingSidebarView extends ItemView {
   }
 
   render(): void {
-    const container = this.contentEl;
-    container.empty();
-    container.addClass("wcm-view");
-
-    if (this.controller.isRefreshing()) {
-      container.createDiv({ cls: "wcm-refreshing", text: "Refreshing calendars…" });
+    this.contentEl.addClass("wcm-view");
+    if (!this.refreshStatus || !this.body) {
+      this.contentEl.empty();
+      this.refreshStatus = new RefreshStatus(this.contentEl, this.pill);
+      this.body = this.contentEl.createDiv({ cls: "wcm-view-body" });
     }
+    this.refreshStatus.update(this.controller.isRefreshing(), this.controller.shouldAnimateRefreshStatus());
+    const container = this.body;
+    container.empty();
     const error = this.controller.getLastError();
     if (error) container.createDiv({ cls: "wcm-error", text: error });
 
@@ -177,30 +191,18 @@ export class SimpleMeetingSidebarView extends ItemView {
 
     const list = container.createDiv({ cls: "wcm-event-list" });
     for (const event of events) {
-      renderEventRow(list, event, this.controller, this.busyEvents, (selected, action) => {
-        void this.runAction(selected, action);
-      });
+      renderEventRow(list, event, this.controller, "sidebar");
     }
   }
 
-  private async runAction(event: CalendarEvent, action: () => Promise<void>): Promise<void> {
-    if (this.busyEvents.has(event.key)) return;
-    this.busyEvents.add(event.key);
-    this.render();
-    try {
-      await action();
-    } catch (error) {
-      reportActionError("sidebar", error);
-    } finally {
-      this.busyEvents.delete(event.key);
-      this.render();
-    }
-  }
+
 }
 
 export class CalendarEventsModal extends Modal {
-  private readonly busyEvents = new Set<string>();
   private opened = false;
+  private unsubscribe: (() => void) | undefined;
+  private refreshStatus: RefreshStatus | undefined;
+  private body: HTMLElement | undefined;
 
   constructor(app: App, private readonly controller: SimpleMeetingSidebarController) {
     super(app);
@@ -208,6 +210,7 @@ export class CalendarEventsModal extends Modal {
 
   onOpen(): void {
     this.opened = true;
+    this.unsubscribe = this.controller.subscribe(() => this.render());
     this.setTitle("Today's calendar events");
     this.modalEl.addClass("wcm-calendar-modal");
     this.render();
@@ -215,17 +218,24 @@ export class CalendarEventsModal extends Modal {
 
   onClose(): void {
     this.opened = false;
+    this.unsubscribe?.();
+    this.unsubscribe = undefined;
+    this.refreshStatus?.dispose();
     this.contentEl.empty();
+    this.refreshStatus = undefined;
+    this.body = undefined;
   }
 
   render(): void {
     if (!this.opened) return;
-    const container = this.contentEl;
-    container.empty();
-
-    if (this.controller.isRefreshing()) {
-      container.createDiv({ cls: "wcm-refreshing", text: "Refreshing calendars…" });
+    if (!this.refreshStatus || !this.body) {
+      this.contentEl.empty();
+      this.refreshStatus = new RefreshStatus(this.contentEl);
+      this.body = this.contentEl.createDiv({ cls: "wcm-view-body" });
     }
+    this.refreshStatus.update(this.controller.isRefreshing(), this.controller.shouldAnimateRefreshStatus());
+    const container = this.body;
+    container.empty();
     const error = this.controller.getLastError();
     if (error) container.createDiv({ cls: "wcm-error", text: error });
 
@@ -256,79 +266,107 @@ export class CalendarEventsModal extends Modal {
 
     const list = section.createDiv({ cls: "wcm-event-list" });
     for (const event of events) {
-      renderEventRow(list, event, this.controller, this.busyEvents, (selected, action) => {
-        void this.runAction(selected, action);
-      });
+      renderEventRow(list, event, this.controller, "modal");
     }
   }
 
-  private async runAction(event: CalendarEvent, action: () => Promise<void>): Promise<void> {
-    if (this.busyEvents.has(event.key)) return;
-    this.busyEvents.add(event.key);
-    this.render();
-    try {
-      await action();
-    } catch (error) {
-      reportActionError("calendar event window", error);
-    } finally {
-      this.busyEvents.delete(event.key);
-      this.render();
-    }
-  }
+
 }
 
-function renderEventRow(
+export function renderEventRow(
   list: HTMLElement,
   event: CalendarEvent,
   controller: SimpleMeetingSidebarController,
-  busyEvents: ReadonlySet<string>,
-  runAction: EventActionRunner,
+  surface: "sidebar" | "modal" | "notification",
 ): void {
   const row = list.createDiv({ cls: "wcm-event" });
-  if (busyEvents.has(event.key)) row.addClass("is-busy");
+  if (controller.isEventBusy(event.key)) row.addClass("is-busy");
 
-  const title = row.createSpan({ cls: "wcm-event-title", text: event.title });
+  const notification = surface === "notification";
+  const content = notification ? row.createDiv({ cls: "wcm-notification-content" }) : row;
+  if (notification) {
+    row.addClass("wcm-notification");
+    content.createSpan({ cls: "wcm-event-time", text: formatMeetingTime(event) });
+  }
+  const title = content.createSpan({ cls: "wcm-event-title", text: event.title });
   title.setAttr("title", event.title);
 
   const actions = row.createDiv({ cls: "wcm-event-actions" });
   const taskButton = actions.createEl("button", {
-    cls: "wcm-action",
-    text: "•",
+    cls: notification ? "wcm-action wcm-notification-secondary clickable-icon" : "wcm-action",
+    text: notification ? "" : "•",
     attr: {
       "aria-label": event.taskAdded ? "Already added to today's tasks" : "Add to today's tasks",
       title: event.taskAdded ? "Already added to today's tasks" : "Add to today's tasks",
       type: "button",
     },
   });
-  taskButton.disabled = busyEvents.has(event.key) || event.taskAdded === true;
+  if (notification) setIcon(taskButton, "list-todo");
+  taskButton.disabled = controller.isEventBusy(event.key) || event.taskAdded === true;
 
   const existingMeeting = event.meetingNotePath
     ? controller.app.vault.getAbstractFileByPath(event.meetingNotePath)
     : null;
   const meetingCreated = existingMeeting instanceof TFile;
   const meetingButton = actions.createEl("button", {
-    cls: "wcm-action",
-    text: "••",
+    cls: notification ? "wcm-action wcm-notification-secondary clickable-icon" : "wcm-action",
+    text: notification ? "" : "••",
     attr: {
       "aria-label": meetingCreated ? "Meeting note already created" : "Create meeting note",
       title: meetingCreated ? "Meeting note already created" : "Create meeting note",
       type: "button",
     },
   });
-  meetingButton.disabled = busyEvents.has(event.key) || meetingCreated;
+  if (notification) setIcon(meetingButton, "file-plus-2");
+  meetingButton.disabled = controller.isEventBusy(event.key) || meetingCreated;
+
+  if (surface !== "modal") {
+    const label = surface === "notification" ? "Dismiss notification" : "Dismiss meeting";
+    const closeButton = actions.createEl("button", {
+      cls: notification ? "wcm-action wcm-notification-close clickable-icon" : "wcm-action",
+      attr: { "aria-label": label, title: label, type: "button" },
+    });
+    setIcon(closeButton, "x");
+    closeButton.disabled = controller.isEventBusy(event.key);
+    closeButton.addEventListener("click", (mouseEvent) => {
+      mouseEvent.stopPropagation();
+      if (row.inert) return;
+      const dismiss = () => controller.runEventAction(event,
+        () => controller.dismissEvent(event, notification, notification && mouseEvent.detail > 0));
+      // Keyboard activation is immediate. Mouse dismissal finishes its fade before
+      // the shared event action updates every open daily-note pane.
+      if (!notification || mouseEvent.detail === 0 || typeof row.animate !== "function") {
+        void dismiss();
+        return;
+      }
+      row.inert = true;
+      row.classList.add("is-dismissing");
+      const win = row.ownerDocument.defaultView!;
+      const reduced = win.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const current = win.getComputedStyle(row);
+      const animation = row.animate([
+        { opacity: current.opacity, transform: current.transform },
+        { opacity: 0, transform: reduced ? "none" : "translateX(-8px)" },
+      ], { duration: reduced ? 100 : 160, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "forwards" });
+      void animation.finished.then(async () => {
+        // Save the hidden end state independently of the animation effect. Busy
+        // renders and effect cleanup must never reveal a completed dismissal.
+        row.classList.add("is-dismissed");
+        if (row.isConnected) await dismiss();
+      }, () => undefined).finally(() => {
+        animation.cancel();
+        row.inert = false;
+        row.classList.remove("is-dismissing", "is-dismissed");
+      });
+    });
+  }
 
   taskButton.addEventListener("click", (mouseEvent) => {
     mouseEvent.stopPropagation();
-    runAction(event, () => controller.addEventAsTask(event));
+    void controller.runEventAction(event, () => controller.addEventAsTask(event));
   });
   meetingButton.addEventListener("click", (mouseEvent) => {
     mouseEvent.stopPropagation();
-    runAction(event, () => controller.createEventMeeting(event));
+    void controller.runEventAction(event, () => controller.createEventMeeting(event));
   });
-}
-
-function reportActionError(location: string, error: unknown): void {
-  const message = error instanceof Error ? error.message : "The action could not be completed.";
-  console.error(`Simple Meeting Sidebar: ${location} action failed`, error);
-  new Notice(`Simple Meeting Sidebar: ${message}`);
 }

@@ -23,9 +23,14 @@ export function loadPluginSettings(value: unknown): StoredPluginSettings {
       ? Math.min(800, Math.max(0, raw.sidebarPillOffset))
       : DEFAULT_SETTINGS.sidebarPillOffset,
     selectedCalendars: readSelectedCalendars(raw.selectedCalendars),
-    onlyGoogleMeetEvents: typeof raw.onlyGoogleMeetEvents === "boolean"
-      ? raw.onlyGoogleMeetEvents
-      : DEFAULT_SETTINGS.onlyGoogleMeetEvents,
+    onlyMeetingLinkEvents: typeof raw.onlyMeetingLinkEvents === "boolean"
+      ? raw.onlyMeetingLinkEvents
+      : raw.onlyGoogleMeetEvents === true,
+    meetingNotifications: raw.meetingNotifications === true,
+    monochromeNotifications: typeof raw.monochromeNotifications === "boolean"
+      ? raw.monochromeNotifications
+      : DEFAULT_SETTINGS.monochromeNotifications,
+    includeMeetingTimeInTask: raw.includeMeetingTimeInTask === true,
     addMeetingNotesToDailyNote: typeof raw.addMeetingNotesToDailyNote === "boolean"
       ? raw.addMeetingNotesToDailyNote
       : DEFAULT_SETTINGS.addMeetingNotesToDailyNote,
@@ -50,13 +55,13 @@ function readCachedEvents(value: unknown): CalendarEvent[] {
   const events: CalendarEvent[] = [];
 
   for (const raw of value.slice(0, MAX_CACHED_EVENTS)) {
-    const event = readCachedEvent(raw);
+    const event = readCalendarEvent(raw);
     if (event) events.push(event);
   }
   return events;
 }
 
-function readCachedEvent(value: unknown): CalendarEvent | null {
+export function readCalendarEvent(value: unknown, includeSavedState = true): CalendarEvent | null {
   if (!isRecord(value)) return null;
   if (typeof value.title !== "string" || typeof value.start !== "string" || typeof value.end !== "string") {
     return null;
@@ -90,11 +95,13 @@ function readCachedEvent(value: unknown): CalendarEvent | null {
   return {
     ...base,
     key: makeEventKey(base),
+    ...(value.hasMeetingLink === true ? { hasMeetingLink: true } : {}),
     ...(location ? { location } : {}),
-    ...(value.taskAdded === true ? { taskAdded: true } : {}),
-    ...(meetingNotePath ? { meetingNotePath } : {}),
+    ...(includeSavedState && value.taskAdded === true ? { taskAdded: true } : {}),
+    ...(includeSavedState && meetingNotePath ? { meetingNotePath } : {}),
     ...(guests && guests.length > 0 ? { guests } : {}),
-    ...(value.sidebarHidden === true ? { sidebarHidden: true } : {}),
+    ...(includeSavedState && value.sidebarHidden === true ? { sidebarHidden: true } : {}),
+    ...(includeSavedState && value.notificationHidden === true ? { notificationHidden: true } : {}),
   };
 }
 

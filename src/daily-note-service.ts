@@ -45,6 +45,11 @@ const obsidianMoment = moment as unknown as {
 export class DailyNoteService {
   constructor(private readonly app: App) {}
 
+  getTodayPath(): string {
+    const settings = this.getSettings();
+    return this.buildPath(obsidianMoment().format(settings.format), settings.folder);
+  }
+
   async getOrCreateToday(): Promise<TFile> {
     const date = obsidianMoment();
     const settings = this.getSettings();
@@ -55,7 +60,7 @@ export class DailyNoteService {
     const nativeCreated = await this.tryNativeCreation(date);
     if (nativeCreated instanceof TFile) return nativeCreated;
 
-    await this.ensureFolder(settings.folder);
+    await ensureVaultFolder(this.app, settings.folder);
     const template = await this.renderTemplate(date, settings);
     try {
       return await this.app.vault.create(path, template);
@@ -164,21 +169,26 @@ export class DailyNoteService {
     return withExtension instanceof TFile ? withExtension : null;
   }
 
-  private async ensureFolder(folderPath: string): Promise<void> {
-    const normalized = normalizePath(folderPath.trim());
-    if (!normalized || normalized === "/") return;
-    let current = "";
-    for (const part of normalized.split("/")) {
-      if (!part) continue;
-      current = current ? `${current}/${part}` : part;
-      const existing = this.app.vault.getAbstractFileByPath(current);
-      if (existing instanceof TFolder) continue;
-      if (existing) throw new Error(`A file already exists where the folder ${current} is needed.`);
-      await this.app.vault.createFolder(current);
-    }
-  }
-
   private buildPath(filename: string, folder: string): string {
     return normalizePath(folder.trim() ? `${folder.trim()}/${filename}.md` : `${filename}.md`);
+  }
+}
+
+export async function ensureVaultFolder(app: App, folderPath: string): Promise<void> {
+  const normalized = normalizePath(folderPath.trim());
+  if (!normalized || normalized === "/") return;
+  let current = "";
+  for (const part of normalized.split("/")) {
+    if (!part) continue;
+    current = current ? `${current}/${part}` : part;
+    const existing = app.vault.getAbstractFileByPath(current);
+    if (existing instanceof TFolder) continue;
+    if (existing) throw new Error(`A file already exists where the folder ${current} is needed.`);
+    try {
+      await app.vault.createFolder(current);
+    } catch (error) {
+      // Another meeting action may have created the same folder while we awaited.
+      if (!(app.vault.getAbstractFileByPath(current) instanceof TFolder)) throw error;
+    }
   }
 }

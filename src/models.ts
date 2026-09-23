@@ -11,6 +11,8 @@ export interface CalendarEvent {
   allDay: boolean;
   calendar: string;
   hasGoogleMeet: boolean;
+  hasMeetingLink?: boolean;
+  notificationHidden?: boolean;
   location?: string;
   guests?: string[];
   taskAdded?: boolean;
@@ -26,7 +28,10 @@ export interface StoredPluginSettings {
   ignoredPeople: string;
   sidebarPillOffset: number;
   selectedCalendars: string[] | null;
-  onlyGoogleMeetEvents: boolean;
+  onlyMeetingLinkEvents: boolean;
+  meetingNotifications: boolean;
+  monochromeNotifications: boolean;
+  includeMeetingTimeInTask: boolean;
   addMeetingNotesToDailyNote: boolean;
   refreshSchedule: RefreshSchedule;
   dailyRefreshTime: string;
@@ -43,7 +48,10 @@ export const DEFAULT_SETTINGS: StoredPluginSettings = {
   ignoredPeople: "",
   sidebarPillOffset: 0,
   selectedCalendars: null,
-  onlyGoogleMeetEvents: false,
+  onlyMeetingLinkEvents: false,
+  meetingNotifications: false,
+  monochromeNotifications: true,
+  includeMeetingTimeInTask: false,
   addMeetingNotesToDailyNote: true,
   refreshSchedule: "daily",
   dailyRefreshTime: "08:00",

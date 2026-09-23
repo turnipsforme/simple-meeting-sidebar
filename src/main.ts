@@ -1,3 +1,4 @@
+import type { Extension } from "@codemirror/state";
 import { Notice, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
 import { CalendarService } from "./calendar-service";
 import { DailyNoteService } from "./daily-note-service";
@@ -6,6 +7,7 @@ import {
   filterCalendarEvents,
   mergeRefreshedEventState,
 } from "./event-filter";
+import { MeetingNotifications } from "./meeting-notifications";
 import { MeetingService } from "./meeting-service";
 import {
   type CalendarEvent,
@@ -30,15 +32,22 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
   declare settings: StoredPluginSettings;
   peopleIndex!: PeopleIndex;
 
+  private dailyNotes!: DailyNoteService;
+  private notifications: MeetingNotifications | null = null;
+  private readonly notificationExtensions: Extension[] = [];
+  private readonly busyEvents = new Set<string>();
+  private readonly listeners = new Set<() => void>();
   private calendarService!: CalendarService;
   private meetingService!: MeetingService;
   private scheduleTimer: number | null = null;
   private refreshPromise: Promise<void> | null = null;
+  private animateRefreshStatus = false;
   private lastRefreshError = "";
 
   async onload(): Promise<void> {
     await this.loadSettings();
-    const dailyNotes = new DailyNoteService(this.app);
+    this.registerEditorExtension(this.notificationExtensions);
+    const dailyNotes = this.dailyNotes = new DailyNoteService(this.app);
     this.peopleIndex = new PeopleIndex(
       this.app,
       () => this.settings.peopleFolder,
@@ -52,6 +61,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
       this.peopleIndex,
       () => this.settings.meetingsFolder,
       () => this.settings.addMeetingNotesToDailyNote,
+      () => this.settings.includeMeetingTimeInTask,
     );
 
     this.registerView(
@@ -108,6 +118,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
     this.register(() => this.clearSchedule());
 
     this.app.workspace.onLayoutReady(() => {
+      this.configureNotifications();
       if (!this.settings.sidebarInitialized) void this.initializeSidebar();
       if (process.platform !== "darwin") {
         this.lastRefreshError = "Simple Meeting Sidebar is available on macOS only.";
@@ -121,6 +132,8 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
   isRefreshing(): boolean {
     return this.refreshPromise !== null;
   }
+
+  shouldAnimateRefreshStatus(): boolean { return this.animateRefreshStatus; }
 
   getTodayEvents(): CalendarEvent[] {
     return this.getEventsForDate(localDateKey(new Date()))
@@ -158,7 +171,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
     return this.lastRefreshError;
   }
 
-  async refreshToday(manual = false): Promise<void> {
+  async refreshToday(manual = false, animateStatus = false): Promise<void> {
     if (process.platform !== "darwin") {
       const error = new Error("Apple Calendar access is supported on macOS only.");
       if (manual) new Notice(`Simple Meeting Sidebar: ${error.message}`);
@@ -166,6 +179,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
     }
     if (this.refreshPromise) return this.refreshPromise;
 
+    this.animateRefreshStatus = animateStatus;
     const operation = this.performRefresh(manual);
     this.refreshPromise = operation;
     this.renderViews();
@@ -258,12 +272,14 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
 
   private async updateEventState(
     eventKey: string,
-    patch: Partial<Pick<CalendarEvent, "taskAdded" | "meetingNotePath" | "sidebarHidden">>,
+    patch: Partial<Pick<CalendarEvent, "taskAdded" | "meetingNotePath" | "sidebarHidden" | "notificationHidden">>,
+    animateLayout = false,
   ): Promise<void> {
     const event = this.settings.cachedEvents.find((candidate) => candidate.key === eventKey);
     if (!event) return;
     Object.assign(event, patch);
     await this.saveSettings();
+    if (animateLayout) this.notifications?.prepareDismissal(eventKey);
     this.renderViews();
   }
 
@@ -294,7 +310,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
       filterCalendarEvents(
         this.settings.cachedEvents,
         this.settings.selectedCalendars,
-        this.settings.onlyGoogleMeetEvents,
+        this.settings.onlyMeetingLinkEvents,
       ),
       dateKey,
     );
@@ -328,12 +344,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
       new Notice(`Simple Meeting Sidebar: no upcoming meeting to add as a ${label}.`);
       return;
     }
-    try {
-      await action(event);
-    } catch (error: unknown) {
-      console.error(`Simple Meeting Sidebar: could not add the ${label}`, error);
-      new Notice(`Simple Meeting Sidebar: could not add the ${label}.`);
-    }
+    await this.runEventAction(event, () => action(event));
   }
 
   private async activateView(): Promise<void> {
@@ -372,7 +383,53 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
     split?.expand?.();
   }
 
+  configureNotifications(): void {
+    if (this.settings.meetingNotifications && !this.notifications) {
+      this.notifications = new MeetingNotifications(this, this.dailyNotes);
+      this.addChild(this.notifications);
+      this.notificationExtensions.push(this.notifications.extension);
+      this.app.workspace.updateOptions();
+    } else if (!this.settings.meetingNotifications && this.notifications) {
+      this.notificationExtensions.length = 0;
+      this.app.workspace.updateOptions();
+      this.removeChild(this.notifications);
+      this.notifications = null;
+    }
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
+
+  isEventBusy(key: string): boolean {
+    return this.busyEvents.has(key);
+  }
+
+  async runEventAction(event: CalendarEvent, action: () => Promise<void>): Promise<void> {
+    if (this.busyEvents.has(event.key)) return;
+    this.busyEvents.add(event.key);
+    this.renderViews();
+    try {
+      await action();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The action could not be completed.";
+      console.error("Simple Meeting Sidebar: meeting action failed", error);
+      new Notice(`Simple Meeting Sidebar: ${message}`);
+    } finally {
+      this.busyEvents.delete(event.key);
+      this.renderViews();
+    }
+  }
+
+  async dismissEvent(event: CalendarEvent, notificationOnly = false, animateLayout = false): Promise<void> {
+    await this.updateEventState(event.key, notificationOnly
+      ? { notificationHidden: true }
+      : { sidebarHidden: true }, notificationOnly && animateLayout);
+  }
+
   renderViews(): void {
+    for (const listener of this.listeners) listener();
     for (const leaf of this.app.workspace.getLeavesOfType(SIMPLE_MEETING_SIDEBAR_VIEW)) {
       if (leaf.view instanceof SimpleMeetingSidebarView) leaf.view.render();
     }

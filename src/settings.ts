@@ -11,6 +11,8 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
   getSettingDefinitions(): SettingDefinitionItem[] {
     return [{
       name: "Simple Meeting Sidebar settings",
+      // This is a rendering wrapper, not a second searchable settings page.
+      searchable: false,
       aliases: ["events", "calendars", "meetings", "people", "refresh", "Advanced URI"],
       render: (setting) => {
         setting.settingEl.empty();
@@ -36,15 +38,47 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
     void this.displayCalendarChoices(calendarChoices);
 
     new Setting(containerEl)
-      .setName("Only events with Google Meet links")
-      .setDesc("Hide events unless a meet.google.com link is attached in the event URL, location, or notes.")
+      .setName("Only events with meeting links")
+      .setDesc("Include events with Google Meet, Zoom, or Microsoft Teams links in the event URL, location, or notes.")
       .addToggle((toggle) => toggle
-        .setValue(this.calendarPlugin.settings.onlyGoogleMeetEvents)
+        .setValue(this.calendarPlugin.settings.onlyMeetingLinkEvents)
         .onChange(async (value) => {
-          this.calendarPlugin.settings.onlyGoogleMeetEvents = value;
+          this.calendarPlugin.settings.onlyMeetingLinkEvents = value;
           await this.calendarPlugin.saveSettings();
           this.calendarPlugin.renderViews();
           if (value) void this.calendarPlugin.refreshToday(false).catch(() => undefined);
+        }));
+
+    new Setting(containerEl)
+      .setName("Meeting notifications")
+      .setDesc("Show compact meeting banners below today's daily note, above Influx linked mentions. Closing a banner only hides it here. A manual refresh brings hidden meetings back.")
+      .addToggle((toggle) => toggle
+        .setValue(this.calendarPlugin.settings.meetingNotifications)
+        .onChange(async (value) => {
+          this.calendarPlugin.settings.meetingNotifications = value;
+          this.calendarPlugin.configureNotifications();
+          await this.calendarPlugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName("Neutral notifications")
+      .setDesc("Use your theme's neutral background, text, and borders. On by default; turn off for blue banners.")
+      .addToggle((toggle) => toggle
+        .setValue(this.calendarPlugin.settings.monochromeNotifications)
+        .onChange(async (value) => {
+          this.calendarPlugin.settings.monochromeNotifications = value;
+          this.calendarPlugin.renderViews();
+          await this.calendarPlugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName("Include meeting time in tasks")
+      .setDesc("Prefix new tasks with the meeting time, for example “10:30am weekly catch-up”. All-day events use “all day”.")
+      .addToggle((toggle) => toggle
+        .setValue(this.calendarPlugin.settings.includeMeetingTimeInTask)
+        .onChange(async (value) => {
+          this.calendarPlugin.settings.includeMeetingTimeInTask = value;
+          await this.calendarPlugin.saveSettings();
         }));
 
     new Setting(containerEl)
@@ -99,6 +133,7 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
         .setValue(this.calendarPlugin.settings.ignoredPeople)
         .onChange(async (value) => {
           this.calendarPlugin.settings.ignoredPeople = value;
+          this.calendarPlugin.peopleIndex.invalidate();
           await this.calendarPlugin.saveSettings();
         }));
     ignoredPeopleSetting.settingEl.addClass("wcm-people-setting");
@@ -138,10 +173,10 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
       .setDesc("Refreshes yesterday and today, and restores handled events to the sidebar.")
       .addButton((button) => button
         .setButtonText("Refresh")
-        .onClick(async () => {
+        .onClick(async (event) => {
           button.setDisabled(true);
           try {
-            await this.calendarPlugin.refreshToday(true);
+            await this.calendarPlugin.refreshToday(true, event.detail > 0);
           } catch {
             // refreshToday already reports the specific helper or permission error.
           } finally {

@@ -1,4 +1,4 @@
-import type { TextUpdateResult } from "./models";
+import type { CalendarEvent, TextUpdateResult } from "./models";
 
 const HEADING_RE = /^(#{1,6})[ \t]+(.+?)\s*$/;
 const EMOJI_RE = /(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:[\uFE0E\uFE0F])?(?:\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:[\uFE0E\uFE0F])?(?:\p{Emoji_Modifier})?)*)/gu;
@@ -83,15 +83,13 @@ export function filterIgnoredGuests(guests: readonly string[], ignoredRaw: strin
   const ignored = parseIgnoredPeople(ignoredRaw);
   if (ignored.size === 0) return [...guests];
 
-  const ignoredTokens = new Set<string>();
-  for (const key of ignored) for (const token of key.split(" ")) ignoredTokens.add(token);
+  return guests.filter((guest) => !isIgnoredPerson(guest, ignored));
+}
 
-  return guests.filter((guest) => {
-    const normalized = normalizePersonText(guest);
-    if (!normalized) return false;
-    if (ignored.has(normalized)) return false;
-    return !normalized.split(" ").some((token) => ignoredTokens.has(token));
-  });
+export function isIgnoredPerson(name: string, ignored: ReadonlySet<string>): boolean {
+  const normalized = normalizePersonText(name);
+  const firstName = normalized.split(" ")[0] ?? "";
+  return !normalized || ignored.has(normalized) || ignored.has(firstName);
 }
 
 export function normalizePersonText(value: string): string {
@@ -252,4 +250,15 @@ function indentationWidth(value: string): number {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function formatMeetingTime(event: Pick<CalendarEvent, "start" | "allDay">): string {
+  if (event.allDay) return "All day";
+  const date = new Date(event.start);
+  const hours = date.getHours();
+  return `${hours % 12 || 12}:${String(date.getMinutes()).padStart(2, "0")}${hours < 12 ? "am" : "pm"}`;
+}
+
+export function meetingTaskTitle(event: CalendarEvent, includeTime: boolean): string {
+  return includeTime ? `${formatMeetingTime(event)} ${event.title}` : event.title;
 }

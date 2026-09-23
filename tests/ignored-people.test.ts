@@ -25,3 +25,9 @@ test("filterIgnoredGuests keeps everyone with an empty list or setting", () => {
   assert.deepEqual(filterIgnoredGuests(guests, ""), guests);
   assert.deepEqual(filterIgnoredGuests([], "Mish"), []);
 });
+
+test("full-name exclusions do not accidentally exclude people sharing a name", () => {
+  assert.deepEqual(filterIgnoredGuests(["Dana Smith", "Dana Jones", "Jamie Smith"], "Dana Smith"),
+    ["Dana Jones", "Jamie Smith"]);
+  assert.deepEqual(filterIgnoredGuests(["Dana Smith", "Dana Jones", "Jamie Smith"], "Dana"), ["Jamie Smith"]);
+});

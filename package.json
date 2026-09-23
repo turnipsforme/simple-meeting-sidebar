@@ -1,6 +1,6 @@
 {
   "name": "simple-meeting-sidebar",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "private": true,
   "description": "A macOS-only sidebar for today's Apple Calendar meetings.",
   "type": "module",
@@ -12,16 +12,20 @@
     "build": "npm run build:plugin && npm run package:release",
     "test:ts": "node --import tsx --test tests/*.test.ts",
     "test:swift": "runtime/calendar-helper --self-test",
-    "test": "npm run test:ts && npm run test:swift",
+    "test": "npm run test:ts && npm run test:dom && npm run test:swift",
     "lint": "eslint .",
-    "check": "npm run lint && npm run build && npm test"
+    "check": "npm run lint && npm run build && npm test",
+    "test:dom": "node --test tests/*.test.cjs"
   },
   "devDependencies": {
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/view": "^6.0.0",
     "@types/node": "^22.10.0",
     "esbuild": "^0.25.0",
     "eslint": "^10.9.1",
     "eslint-plugin-obsidianmd": "^0.4.2",
     "globals": "^17.12.0",
+    "jsdom": "^26.1.0",
     "obsidian": "^1.8.7",
     "tslib": "^2.8.1",
     "tsx": "^4.19.2",

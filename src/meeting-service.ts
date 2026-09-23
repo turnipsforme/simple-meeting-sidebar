@@ -1,8 +1,8 @@
-import { normalizePath, type App, TFile, TFolder } from "obsidian";
+import { normalizePath, type App, TFile } from "obsidian";
 import type { CalendarEvent } from "./models";
-import { DailyNoteService } from "./daily-note-service";
+import { DailyNoteService, ensureVaultFolder } from "./daily-note-service";
 import { PeopleIndex } from "./people-index";
-import { nextMeetingBasename, normalizeVaultFolder, sanitizeMeetingTitle } from "./utils";
+import { meetingTaskTitle, nextMeetingBasename, normalizeVaultFolder, sanitizeMeetingTitle } from "./utils";
 
 export interface MeetingCreationResult {
   file: TFile;
@@ -16,17 +16,19 @@ export class MeetingService {
     private readonly people: PeopleIndex,
     private getMeetingFolder: () => string,
     private shouldAddMeetingToDailyNote: () => boolean,
+    private shouldIncludeTime: () => boolean = () => false,
   ) {}
 
   async addTask(event: CalendarEvent): Promise<boolean> {
+    if (event.taskAdded) return false;
     const dailyNote = await this.dailyNotes.getOrCreateToday();
-    return this.dailyNotes.addTask(dailyNote, event.title);
+    return this.dailyNotes.addTask(dailyNote, meetingTaskTitle(event, this.shouldIncludeTime()));
   }
 
   async createMeeting(event: CalendarEvent): Promise<MeetingCreationResult> {
     const dailyNote = await this.dailyNotes.getOrCreateToday();
     const folder = normalizeVaultFolder(this.getMeetingFolder(), "Meetings");
-    await this.ensureFolder(folder);
+    await ensureVaultFolder(this.app, folder);
 
     const baseName = sanitizeMeetingTitle(event.title);
     let basenames = this.getExistingMeetingBasenames(folder);
@@ -89,15 +91,4 @@ export class MeetingService {
       .map((file) => file.basename);
   }
 
-  private async ensureFolder(folderPath: string): Promise<void> {
-    let current = "";
-    for (const part of folderPath.split("/")) {
-      if (!part) continue;
-      current = current ? `${current}/${part}` : part;
-      const existing = this.app.vault.getAbstractFileByPath(current);
-      if (existing instanceof TFolder) continue;
-      if (existing) throw new Error(`A file already exists where the folder ${current} is needed.`);
-      await this.app.vault.createFolder(current);
-    }
-  }
 }

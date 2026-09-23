@@ -8,7 +8,7 @@ private struct CalendarEventOutput: Codable {
     let end: Date
     let allDay: Bool
     let calendar: String
-    let hasGoogleMeet: Bool
+    let hasMeetingLink: Bool
     let location: String?
     let guests: [String]?
 }
@@ -32,7 +32,7 @@ private struct CalendarHelper {
     static func main() async {
         do {
             if CommandLine.arguments.count == 2 && CommandLine.arguments[1] == "--version" {
-                print("calendar-helper 0.2.0")
+                print("calendar-helper 0.3.0")
                 return
             }
             if CommandLine.arguments.count == 2 && CommandLine.arguments[1] == "--self-test" {
@@ -77,7 +77,8 @@ private struct CalendarHelper {
                         end: event.endDate,
                         allDay: event.isAllDay,
                         calendar: event.calendar?.title ?? "",
-                        hasGoogleMeet: hasGoogleMeetLink(event),
+                        hasMeetingLink: [event.url?.absoluteString, event.location, event.notes]
+                            .compactMap { $0 }.contains(where: hasMeetingLink),
                         location: event.location,
                         guests: guestNames(event)
                     )
@@ -145,10 +146,12 @@ private struct CalendarHelper {
         return names.isEmpty ? nil : names
     }
 
-    private static func hasGoogleMeetLink(_ event: EKEvent) -> Bool {
-        [event.url?.absoluteString, event.location, event.notes]
-            .compactMap { $0?.lowercased() }
-            .contains { $0.contains("meet.google.com") }
+    // Match host boundaries, including Zoom vanity subdomains and Teams for personal accounts.
+    private static func hasMeetingLink(_ text: String) -> Bool {
+        text.range(
+            of: #"(?i)(?<![a-z0-9_.@/-])(?:https?://)?(?:meet\.google\.com|(?:[a-z0-9-]+\.)*zoom\.(?:us|com)|teams\.(?:microsoft\.com|live\.com|cloud\.microsoft))(?=[:/\s<>\)\]\"']|$)"#,
+            options: .regularExpression
+        ) != nil
     }
 
     private static func writeJSON<Value: Encodable>(_ value: Value) throws {
@@ -174,7 +177,7 @@ private struct CalendarHelper {
                 end: Date(timeIntervalSince1970: 1800),
                 allDay: false,
                 calendar: "Test",
-                hasGoogleMeet: true,
+                hasMeetingLink: true,
                 location: nil,
                 guests: nil
             )
@@ -183,7 +186,16 @@ private struct CalendarHelper {
         encoder.dateEncodingStrategy = .iso8601
         _ = try encoder.encode(fixture)
 
-        guard "https://meet.google.com/abc-defg-hij".lowercased().contains("meet.google.com") else {
+        let meetingLinks = [
+            "https://meet.google.com/abc-defg-hij", "Join https://us02web.zoom.us/j/123",
+            "https://company.zoom.com/j/123", "https://teams.microsoft.com/l/meetup-join/123",
+            "https://teams.live.com/meet/123", "https://teams.cloud.microsoft/meet/123",
+            "ZOOM.US/j/123", "<a href=\"https://zoom.us/j/123\">Join</a>"
+        ]
+        let otherLinks = ["https://example.com", "meet.google.com.evil.test", "notzoom.us",
+                          "https://not-teams.microsoft.com/", "https://example.com/zoom.us/j/123"]
+        guard meetingLinks.allSatisfy(hasMeetingLink),
+              !otherLinks.contains(where: hasMeetingLink) else {
             throw HelperError.invalidArguments
         }
     }

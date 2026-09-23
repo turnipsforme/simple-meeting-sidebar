@@ -4,12 +4,12 @@ import { localDateKey } from "./utils";
 export function filterCalendarEvents(
   events: readonly CalendarEvent[],
   selectedCalendars: readonly string[] | null,
-  onlyGoogleMeetEvents: boolean,
+  onlyMeetingLinkEvents: boolean,
 ): CalendarEvent[] {
   const selected = selectedCalendars === null ? null : new Set(selectedCalendars);
   return events.filter((event) =>
     (selected === null || selected.has(event.calendar))
-    && (!onlyGoogleMeetEvents || event.hasGoogleMeet));
+    && (!onlyMeetingLinkEvents || (event.hasMeetingLink || event.hasGoogleMeet)));
 }
 
 export function eventsStartingOnLocalDate(
@@ -32,6 +32,7 @@ export function mergeRefreshedEventState(
       ...(previous?.taskAdded ? { taskAdded: true } : {}),
       ...(previous?.meetingNotePath ? { meetingNotePath: previous.meetingNotePath } : {}),
       ...(preserveSidebarHidden && previous?.sidebarHidden ? { sidebarHidden: true } : {}),
+      ...(preserveSidebarHidden && previous?.notificationHidden ? { notificationHidden: true } : {}),
     };
   });
 }

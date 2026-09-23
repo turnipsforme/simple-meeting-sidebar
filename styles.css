@@ -2,6 +2,13 @@
   padding: var(--size-4-3);
 }
 
+.wcm-view,
+.wcm-calendar-modal,
+.wcm-notifications {
+  --wcm-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  min-width: 0;
+}
+
 /* Hide the sidebar tab icon and its separator for this view; the in-view pill replaces them. */
 .workspace-tab-header[data-type="simple-meeting-sidebar-view"] {
   display: none;
@@ -55,7 +62,8 @@ body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
   transition: opacity 120ms ease-out, background 120ms ease-out;
 }
 
-.wcm-pill:hover {
+.wcm-pill:hover,
+.wcm-pill.is-refreshing {
   opacity: 1;
   background: var(--interactive-accent);
 }
@@ -81,11 +89,18 @@ body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
   font-weight: var(--font-semibold);
 }
 
-.wcm-refreshing {
-  margin-bottom: var(--size-4-3);
-  color: var(--text-muted);
-  font-size: var(--font-ui-small);
+.wcm-status-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
+
+.wcm-view-body { min-width: 0; }
 
 .wcm-view-controls {
   display: flex;
@@ -165,10 +180,6 @@ body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
   opacity: 0.45;
 }
 
-.wcm-action.is-loading svg {
-  animation: wcm-spin 900ms linear infinite;
-}
-
 .wcm-event.is-busy {
   opacity: 0.65;
 }
@@ -184,18 +195,6 @@ body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
   color: var(--text-error);
 }
 
-@keyframes wcm-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .wcm-action.is-loading svg {
-    animation: none;
-  }
-}
-
 .wcm-uri-help {
   margin: 0 0 var(--size-4-2);
 }
@@ -208,6 +207,7 @@ body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
 }
 
 .wcm-uri-row {
+  overflow-wrap: anywhere;
   padding: 6px 10px;
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
@@ -215,4 +215,269 @@ body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
   color: var(--text-muted);
   font-family: var(--font-monospace);
   font-size: var(--font-ui-smaller);
+}
+
+/* Notification-only styling: the sidebar and note-footer placement stay unchanged. */
+.wcm-notifications {
+  --wcm-banner-background: #b0e0e6;
+  --wcm-banner-text: #fff;
+  --wcm-notification-ease: var(--wcm-ease-out);
+  --wcm-notification-layout-ease: cubic-bezier(0.77, 0, 0.175, 1);
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-block: 12px 0;
+  white-space: normal;
+  font-family: var(--font-text);
+  font-size: var(--font-text-size, 16px);
+  font-weight: var(--font-normal, 400);
+  line-height: 1.4;
+}
+
+.wcm-notifications.wcm-notifications-monochrome {
+  --wcm-banner-background: var(--background-secondary);
+  --wcm-banner-text: var(--text-normal);
+}
+
+.wcm-notifications .wcm-notification {
+  box-sizing: border-box;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  width: max(80%, min(100%, 24rem));
+  margin-inline: auto;
+  min-height: 36px;
+  padding: 4px 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--wcm-notification-radius, var(--radius-l, 10px));
+  background: var(--wcm-banner-background);
+  color: var(--wcm-banner-text);
+  box-shadow: var(--wcm-notification-shadow, var(--input-shadow, none));
+  opacity: 1;
+  transform: none;
+  transition: opacity 200ms var(--wcm-notification-ease), transform 200ms var(--wcm-notification-ease);
+}
+
+@starting-style {
+  .wcm-notifications .wcm-notification-enter {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+
+.wcm-notifications .wcm-notification.is-dismissed {
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+}
+
+.wcm-notification-content {
+  grid-column: 1;
+  display: grid;
+  grid-template-columns: 6.5ch minmax(0, 1fr);
+  align-items: baseline;
+  gap: 1em;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.wcm-event-time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wcm-notifications .wcm-event-time {
+  font-size: 0.9em;
+  opacity: 0.8;
+}
+
+.wcm-notifications-monochrome .wcm-event-time {
+  color: var(--text-muted);
+}
+
+.wcm-notifications .wcm-event-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Respond to the note pane, including narrow desktop splits, not just the window. */
+@container (max-width: 420px) {
+  .wcm-notifications .wcm-notification {
+    width: 100%;
+    padding: 8px 10px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .wcm-notification-content {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .wcm-notifications .wcm-event-title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .wcm-notifications .wcm-notification .wcm-event-actions {
+    grid-column: 1;
+    padding-inline-start: 0;
+  }
+}
+
+.wcm-notifications .wcm-event-actions {
+  grid-column: 2;
+  justify-self: end;
+  align-items: center;
+  gap: 2px;
+  padding-inline-start: 8px;
+  opacity: 1;
+  transition: none;
+}
+
+/* Reset Obsidian/theme button chrome on this surface, including hover. */
+.wcm-notifications .wcm-action,
+.wcm-notifications .wcm-action:hover:not(:disabled),
+.wcm-notifications .wcm-action:active {
+  appearance: none;
+  flex: 0 0 24px;
+  width: 24px;
+  min-width: 24px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-s, 4px);
+  color: var(--wcm-banner-text);
+  background: transparent;
+  box-shadow: none;
+  cursor: var(--cursor, default);
+}
+
+.wcm-notifications .wcm-action {
+  transition: opacity 125ms var(--wcm-notification-ease), transform 100ms var(--wcm-notification-ease);
+}
+
+.wcm-notifications .wcm-action:active:not(:disabled):not(:focus-visible) {
+  transform: scale(0.97);
+  transition-duration: 125ms, 160ms;
+}
+
+.wcm-notifications .wcm-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.wcm-notifications .wcm-action:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+  transition: none;
+}
+
+/* A generous area around the controls reveals them, not the whole banner. */
+@media (hover: hover) and (pointer: fine) {
+  .wcm-notifications .wcm-event-actions .wcm-notification-secondary {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .wcm-notifications .wcm-event-actions:hover .wcm-notification-secondary,
+  .wcm-notifications .wcm-event-actions:focus-within .wcm-notification-secondary {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .wcm-notifications .wcm-event-actions:hover .wcm-notification-secondary:disabled,
+  .wcm-notifications .wcm-event-actions:focus-within .wcm-notification-secondary:disabled {
+    opacity: 0.45;
+  }
+
+  .wcm-notifications .wcm-action:hover:not(:disabled) {
+    opacity: 0.8;
+  }
+}
+
+/* Keyboard focus is immediate; touch devices keep all actions discoverable. */
+.wcm-notifications .wcm-event-actions:focus-within .wcm-action {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wcm-notifications .wcm-notification {
+    transition: opacity 100ms var(--wcm-notification-ease);
+  }
+
+  @starting-style {
+    .wcm-notifications .wcm-notification-enter {
+      transform: none;
+    }
+  }
+
+  .wcm-notifications .wcm-action {
+    transition: opacity 100ms var(--wcm-notification-ease);
+  }
+
+  .wcm-notifications .wcm-action:active:not(:disabled):not(:focus-visible) {
+    transform: none;
+    transition-duration: 100ms;
+  }
+}
+
+.wcm-action:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+
+.wcm-action svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Touch controls stay visible, with full-size targets and room for long titles. */
+@media (hover: none), (pointer: coarse) {
+  .wcm-event { grid-template-columns: minmax(0, 1fr); }
+  .wcm-event-title { white-space: normal; overflow-wrap: anywhere; }
+  .wcm-event-actions { opacity: 1; justify-self: end; gap: 4px; }
+
+  .wcm-action,
+  .wcm-notifications .wcm-action,
+  .wcm-notifications .wcm-action:hover:not(:disabled),
+  .wcm-notifications .wcm-action:active {
+    flex-basis: 44px;
+    min-width: 44px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .wcm-notifications .wcm-notification { grid-template-columns: minmax(0, 1fr); }
+  .wcm-notifications .wcm-event-actions { grid-column: 1; padding-inline-start: 0; }
+  .wcm-notifications .wcm-event-title { white-space: normal; }
+}
+
+.markdown-preview-view > .wcm-notifications {
+  width: 100%;
+  margin-inline: auto;
+}
+
+.markdown-preview-view.is-readable-line-width > .wcm-notifications {
+  max-width: var(--file-line-width);
+}
+
+/* Only remove the artificial editing space when our own footer is present. */
+.wcm-has-notifications .cm-content {
+  padding-bottom: 1.5rem !important;
+}
+
+.markdown-preview-view.wcm-has-notifications > .markdown-preview-sizer {
+  padding-bottom: 0 !important;
+}
+
+/* Influx normally adds 3em here. Tighten only the junction with our banners. */
+.wcm-notifications + obsidian-influx-element .embedded-backlinks,
+.wcm-notifications + .influx-preview-wrapper .embedded-backlinks {
+  margin-top: 12px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wcm-event-actions, .wcm-pill { transition: none; }
 }

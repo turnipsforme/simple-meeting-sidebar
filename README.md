@@ -21,12 +21,12 @@ Every Mac publishes after a successful calendar refresh. There is no publisher t
 1. Update the plugin on your Mac and phone, then refresh meetings on the Mac.
 2. Sync `Meetings/_calendar/events.json` as an ordinary vault file. The path is fixed, independent of your meeting-note folder and settings profile.
 3. With Obsidian Sync, enable **Sync all other types** on each device and ensure `Meetings/_calendar` is not excluded. [Obsidian's sync settings](https://obsidian.md/help/sync/settings) explain the device-specific options.
-4. Enable **Meeting notifications** if wanted. Mobile uses the same Obsidian editor extension and reading-mode footer, with wrapping titles and visible 44px touch controls.
+4. Enable **Meeting notifications** if wanted. Mobile uses the same Obsidian editor extension and reading-mode footer, with a single-line time and title above three separated, visible 44px touch controls. Long titles truncate to keep banners compact.
 5. Open **Toggle meetings sidebar** when you want the list. The plugin never opens the mobile sidebar automatically. **Reload synced meetings** reads the file already received on the phone; it does not ask a Mac to refresh.
 
 Mobile shows an update time and distinguishes an empty day from missing data. Saved meetings remain available when old, but banners appear only after a valid snapshot read, with complete coverage of the phone's current day, matching calendar selection, and a fetch less than one hour old. Invalid, missing, conflicting or older files suppress banners while keeping the last valid sidebar data. The Mac refresh schedule stays unchanged, so a daily schedule gives a limited mobile banner window; choose hourly refresh if you want more frequent updates while a Mac is open. A fresh snapshot still cannot detect a cancellation that has not reached Apple Calendar or vault sync yet.
 
-Mobile reads on startup, snapshot changes, and app resume. It does not poll or contact Apple Calendar. One local timer updates the date at midnight and removes expired banners. Desktop sidebar and banner presentation stay unchanged; freshness labels and reload controls appear only on mobile.
+Mobile reads on startup, snapshot changes, and app resume. It does not poll or contact Apple Calendar. One local timer updates the date at midnight and removes expired banners. Banners disappear at their scheduled start time; the sidebar keeps the meeting until it is dismissed or used. Freshness labels and reload controls appear only on mobile.
 
 Dismissals and action state stay on each device. Notes and daily-note tasks sync normally. New notes carry a `simple-meeting-event` property, and new tasks carry an invisible event marker. Other devices recognise these after syncing, including title changes and separate recurring occurrences. Apple's [external calendar identifier](https://developer.apple.com/documentation/eventkit/ekcalendaritem/calendaritemexternalidentifier) is used when available; calendars without a stable external identifier cannot guarantee matching across Macs.
 
@@ -44,19 +44,21 @@ The test build is prepared on `feature/mobile-calendar-snapshot`. The unchanged 
 - Run **Simple Meeting Sidebar: Add next meeting as task** or **Create next meeting note** to handle the next event from anywhere.
 - Run **Simple Meeting Sidebar: Today's calendar events** to open a floating window with today's and yesterday's events.
 
-After an action succeeds, the event stays hidden until the next manual refresh. Existing tasks and meeting notes are still remembered.
+After an action succeeds, the event stays hidden across devices, refreshes, and restarts. Existing tasks and meeting notes are still remembered.
 
 ## Meeting notifications
 
-Turn on **Meeting notifications** in settings to show today's meetings below today's daily note in editing and reading modes. This is off by default. The plugin follows your Daily Notes or Periodic Notes folder and date format.
+Turn on **Meeting notifications** in settings to show upcoming meetings below today's and tomorrow's daily notes in editing and reading modes. Each note shows only its own day's meetings. Tomorrow's banner buttons add tasks and meeting references to tomorrow's note. This is off by default. The plugin follows your Daily Notes or Periodic Notes folder and date format.
 
-Each compact banner shows a lighter local meeting time on the left, the title, and line icons to add a task, create a meeting note, or dismiss the notification. On a mouse, the extra actions appear when you move over the controls; they also appear on keyboard focus and stay visible on touch devices. Dismissing a banner leaves its sidebar row available. A sidebar dismissal or successful task/note action hides the meeting in both places. Automatic refreshes and restarts remember dismissals; **Refresh today's meetings** brings hidden events back.
+Each compact banner shows a lighter local meeting time on the left, the title, and line icons to add a task, create a meeting note, or dismiss the notification. On a mouse, the extra actions appear when you move over the controls; they also appear on keyboard focus and stay visible on touch devices. Dismissing a banner leaves its sidebar row available. A sidebar dismissal or successful task/note action hides the meeting in both places. Dismissals sync through small records in `Meetings/_calendar/dismissals/`. They remain hidden after manual refreshes and restarts, and simultaneous offline dismissals can sync without replacing one another. Update both devices to this beta to share dismissals.
 
 The banners sit immediately above Influx's footer, also work without Influx, and never change your daily note's text. Influx's optional top-of-page placement stays at the top. Notifications reuse the existing event cache; there is no extra calendar polling.
 
+**Only show notifications when the right sidebar is hidden** is on by default on desktop. Opening the right sidebar fades banners out; closing it brings back only untouched, upcoming meetings. This setting has no effect on mobile.
+
 **Neutral notifications** is on by default. Backgrounds, text, borders, rounded corners, and subtle shadows follow the active theme in light and dark mode. Existing color preferences are saved. Rows have a 12px gap and fade in from the right; mouse dismissal fades toward the left. Reduced motion uses a gentle fade without movement, and keyboard dismissal is immediate. CSS snippets can override `--wcm-notification-radius` or `--wcm-notification-shadow` (use `none` for a flat surface).
 
-After a mouse dismissal, the remaining banners settle into place over 200ms. In narrow note panes, times and titles stack, long titles wrap, and controls move below the text. Refresh feedback uses the sidebar handle: three gentle pulses for a pointer refresh, or a steady highlight for keyboard refresh and reduced motion. No loading label or empty status space is added above meetings. Apple Calendar access still requires macOS.
+After a mouse dismissal, the remaining banners settle into place over 200ms. On phones, time and title share one line above a full-width action strip with separators. Narrow desktop panes can still wrap titles. Refresh feedback uses the sidebar handle: three gentle pulses for a pointer refresh, or a steady highlight for keyboard refresh and reduced motion. No loading label or empty status space is added above meetings. Apple Calendar access still requires macOS.
 
 ## Settings
 
@@ -89,7 +91,7 @@ obsidian://adv-uri?vault=YourVault&commandid=simple-meeting-sidebar%3Arefresh-to
 
 ## Privacy and permissions
 
-Simple Meeting Sidebar accesses Apple Calendar data outside your vault, including event titles, times, locations, calendar names, and guest names. It checks event URLs, locations, and notes for Google Meet, Zoom, and Microsoft Teams links; URLs and notes are not returned by the helper or saved by the plugin. Calendar data is processed locally on your Mac. Selected calendars are saved to `Meetings/_calendar/events.json`, which your vault sync service can transfer to your other devices. The snapshot contains yesterday, today, and the next seven days. Cached data and dismissals are saved in device-local vault storage, separately from synced plugin settings. The plugin does not use network services, collect telemetry, or write to Apple Calendar.
+Simple Meeting Sidebar accesses Apple Calendar data outside your vault, including event titles, times, locations, calendar names, and guest names. It checks event URLs, locations, and notes for Google Meet, Zoom, and Microsoft Teams links; URLs and notes are not returned by the helper or saved by the plugin. Calendar data is processed locally on your Mac. Selected calendars are saved to `Meetings/_calendar/events.json`, which your vault sync service can transfer to your other devices. The snapshot contains yesterday, today, and the next seven days. Cached data is saved in device-local vault storage, separately from synced plugin settings. Dismissal records containing the event identity and dismissal type are saved in `Meetings/_calendar/dismissals/` for vault sync. The plugin does not use network services, collect telemetry, or write to Apple Calendar.
 
 ## Apple Calendar helper
 

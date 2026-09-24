@@ -21,22 +21,22 @@ export class MeetingService {
     private shouldIncludeTime: () => boolean = () => false,
   ) {}
 
-  async addTask(event: CalendarEvent): Promise<boolean> {
+  async addTask(event: CalendarEvent, date?: Date): Promise<boolean> {
     if (event.taskAdded) return false;
-    const dailyNote = await this.dailyNotes.getOrCreateToday();
+    const dailyNote = await (date ? this.dailyNotes.getOrCreateDate(date) : this.dailyNotes.getOrCreateToday());
     return this.dailyNotes.addTask(dailyNote, meetingTaskTitle(event, this.shouldIncludeTime()), eventTaskMarker(event));
   }
 
-  createMeeting(event: CalendarEvent): Promise<MeetingCreationResult | null> {
+  createMeeting(event: CalendarEvent, date?: Date): Promise<MeetingCreationResult | null> {
     const identity = eventIdentity(event);
     const existing = this.creations.get(identity);
     if (existing) return existing;
-    const operation = this.performCreateMeeting(event, identity).finally(() => this.creations.delete(identity));
+    const operation = this.performCreateMeeting(event, identity, date).finally(() => this.creations.delete(identity));
     this.creations.set(identity, operation);
     return operation;
   }
 
-  private async performCreateMeeting(event: CalendarEvent, identity: string): Promise<MeetingCreationResult | null> {
+  private async performCreateMeeting(event: CalendarEvent, identity: string, date?: Date): Promise<MeetingCreationResult | null> {
     const matches = await this.findExisting(identity);
     if (matches.length) {
       const existing = matches.length === 1 ? matches[0]! : await new ExistingMeetingModal(this.app, matches).choose();
@@ -44,7 +44,7 @@ export class MeetingService {
       await this.app.workspace.getLeaf(false).openFile(existing);
       return { file: existing };
     }
-    const dailyNote = await this.dailyNotes.getOrCreateToday();
+    const dailyNote = await (date ? this.dailyNotes.getOrCreateDate(date) : this.dailyNotes.getOrCreateToday());
     const folder = normalizeVaultFolder(this.getMeetingFolder(), "Meetings");
     await ensureVaultFolder(this.app, folder);
 

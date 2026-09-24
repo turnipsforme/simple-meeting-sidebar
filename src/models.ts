@@ -31,6 +31,7 @@ export interface StoredPluginSettings {
   selectedCalendars: string[] | null;
   onlyMeetingLinkEvents: boolean;
   meetingNotifications: boolean;
+  notificationsOnlyWhenSidebarHidden: boolean;
   monochromeNotifications: boolean;
   includeMeetingTimeInTask: boolean;
   addMeetingNotesToDailyNote: boolean;
@@ -51,6 +52,7 @@ export const DEFAULT_SETTINGS: StoredPluginSettings = {
   selectedCalendars: null,
   onlyMeetingLinkEvents: false,
   meetingNotifications: false,
+  notificationsOnlyWhenSidebarHidden: true,
   monochromeNotifications: true,
   includeMeetingTimeInTask: false,
   addMeetingNotesToDailyNote: true,

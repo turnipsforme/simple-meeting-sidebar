@@ -57,12 +57,23 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Meeting notifications")
-      .setDesc("Show compact meeting banners below today's daily note, above Influx linked mentions. Closing a banner only hides it here. A manual refresh brings hidden meetings back.")
+      .setDesc("Show upcoming meetings in today's and tomorrow's daily notes, above linked mentions. Banners disappear at the meeting start time. Dismissals sync between devices.")
       .addToggle((toggle) => toggle
         .setValue(this.calendarPlugin.settings.meetingNotifications)
         .onChange(async (value) => {
           this.calendarPlugin.settings.meetingNotifications = value;
           this.calendarPlugin.configureNotifications();
+          await this.calendarPlugin.saveSettings();
+        }));
+
+    if (!Platform.isMobile) new Setting(containerEl)
+      .setName("Only show notifications when the right sidebar is hidden")
+      .setDesc("Fade inline banners out when the right sidebar opens, and back in when it closes. Dismissed meetings stay hidden.")
+      .addToggle((toggle) => toggle
+        .setValue(this.calendarPlugin.settings.notificationsOnlyWhenSidebarHidden)
+        .onChange(async (value) => {
+          this.calendarPlugin.settings.notificationsOnlyWhenSidebarHidden = value;
+          this.calendarPlugin.renderViews();
           await this.calendarPlugin.saveSettings();
         }));
 

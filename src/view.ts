@@ -23,8 +23,8 @@ export interface SimpleMeetingSidebarController {
   toggleSidebar(): Promise<void>;
   getPillOffset(): number;
   setPillOffset(value: number): Promise<void>;
-  addEventAsTask(event: CalendarEvent): Promise<void>;
-  createEventMeeting(event: CalendarEvent): Promise<void>;
+  addEventAsTask(event: CalendarEvent, date?: Date): Promise<void>;
+  createEventMeeting(event: CalendarEvent, date?: Date): Promise<void>;
   dismissEvent(event: CalendarEvent, notificationOnly?: boolean, animateLayout?: boolean): Promise<void>;
   isEventBusy(key: string): boolean;
   runEventAction(event: CalendarEvent, action: () => Promise<void>): Promise<void>;
@@ -300,6 +300,7 @@ export function renderEventRow(
   event: CalendarEvent,
   controller: SimpleMeetingSidebarController,
   surface: "sidebar" | "modal" | "notification",
+  dailyNoteDate?: Date,
 ): void {
   const row = list.createDiv({ cls: "wcm-event" });
   if (controller.isEventBusy(event.key)) row.addClass("is-busy");
@@ -314,12 +315,13 @@ export function renderEventRow(
   title.setAttr("title", event.title);
 
   const actions = row.createDiv({ cls: "wcm-event-actions" });
+  const taskDay = dailyNoteDate && dailyNoteDate.toDateString() !== new Date().toDateString() ? "tomorrow's" : "today's";
   const taskButton = actions.createEl("button", {
     cls: notification ? "wcm-action wcm-notification-secondary clickable-icon" : "wcm-action",
     text: notification ? "" : "•",
     attr: {
-      "aria-label": event.taskAdded ? "Already added to today's tasks" : "Add to today's tasks",
-      title: event.taskAdded ? "Already added to today's tasks" : "Add to today's tasks",
+      "aria-label": event.taskAdded ? `Already added to ${taskDay} tasks` : `Add to ${taskDay} tasks`,
+      title: event.taskAdded ? `Already added to ${taskDay} tasks` : `Add to ${taskDay} tasks`,
       type: "button",
     },
   });
@@ -385,10 +387,10 @@ export function renderEventRow(
 
   taskButton.addEventListener("click", (mouseEvent) => {
     mouseEvent.stopPropagation();
-    void controller.runEventAction(event, () => controller.addEventAsTask(event));
+    void controller.runEventAction(event, () => controller.addEventAsTask(event, dailyNoteDate));
   });
   meetingButton.addEventListener("click", (mouseEvent) => {
     mouseEvent.stopPropagation();
-    void controller.runEventAction(event, () => controller.createEventMeeting(event));
+    void controller.runEventAction(event, () => controller.createEventMeeting(event, dailyNoteDate));
   });
 }

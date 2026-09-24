@@ -21,7 +21,7 @@ function fixture(){
  fileManager:{generateMarkdownLink:file=>'[['+file.basename+']]'},workspace:{getLeaf:()=>({openFile:async file=>opened.push(file.path)})}};
  const dailyNotes=new api.DailyNoteService(app);dailyNotes.getOrCreateToday=async()=>daily;dailyNotes.getLinkLabel=()=> 'Sep 23';dailyNotes.addMeetingReference=async()=>{links++;return true;};
  const people={find:()=>null};let time=false;const service=new api.MeetingService(app,dailyNotes,people,()=> 'Meetings',()=>true,()=>time);
- return {service,app,put,contents,cache,opened,daily,setTime:value=>{time=value;},get writes(){return writes;},get reads(){return reads;},get links(){return links;}};
+ return {service,app,dailyNotes,put,contents,cache,opened,daily,setTime:value=>{time=value;},get writes(){return writes;},get reads(){return reads;},get links(){return links;}};
 }
 test('new notes keep the original naming/template and add a sync identity; repeat actions reuse unindexed notes',async()=>{
  const f=fixture();const first=await f.service.createMeeting(event);assert.equal(f.writes,1);assert.match(f.contents.get(first.file.path),/^---\nsimple-meeting-event:/);
@@ -56,4 +56,14 @@ test('legacy task titles are still recognised and offline duplicate task markers
  const f=fixture();f.contents.set('Today.md','- [ ] Catch up\n');assert.equal(await f.service.addTask(event),false);
  const marker=api.eventTaskMarker(event);f.contents.set('Today.md',`- [ ] Catch up ${marker}\n- [ ] Catch up ${marker}\n`);
  assert.equal(await f.service.addTask(event),false);assert.equal((f.contents.get('Today.md').match(/simple-meeting:/g)||[]).length,2);
+});
+
+test('tomorrow banner actions use tomorrow for tasks and meeting backlinks',async()=>{
+ const f=fixture();const tomorrow=new Date(2026,8,25,12);const tomorrowFile=f.put('Tomorrow.md','# Tomorrow\n\n## Tasks\n');
+ let requested;
+ f.dailyNotes.getOrCreateDate=async date=>{requested=date;return tomorrowFile;};
+ await f.service.addTask(event,tomorrow);assert.equal(requested,tomorrow);
+ assert.match(f.contents.get('Tomorrow.md'),/simple-meeting:/);assert.doesNotMatch(f.contents.get('Today.md'),/simple-meeting:/);
+ const meeting=await f.service.createMeeting(event,tomorrow);assert.equal(requested,tomorrow);
+ assert.match(f.contents.get(meeting.file.path),/\[\[Tomorrow\]\]/);
 });

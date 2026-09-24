@@ -69,6 +69,8 @@ test('notification containers stay detached until mounted in the editor or readi
   const { MeetingNotifications, renderEventRow, SimpleMeetingSidebarView, Platform, MarkdownView, editorInfoField } = compiled.exports;
   const event = { key: '1', title: 'Meeting with John', start: new Date(2026,8,20,10,30).toISOString(), allDay: false };
   let events = [event];
+  let tomorrowEvents = [];
+  let sidebarOpen = false;
   const busy = new Set();
   let pendingSave;
   let subscriber;
@@ -80,7 +82,8 @@ test('notification containers stay detached until mounted in the editor or readi
   const plugin = {
     settings: { monochromeNotifications: false },
     app: {workspace: {on() {}, getLeavesOfType() { return [{view}]; }}, vault: { getAbstractFileByPath() { return null; } }},
-    getNotificationEvents() { return events; }, getTodayEvents() { return events; },
+    shouldHideInlineNotifications() { return sidebarOpen; },
+    getNotificationEvents(date) { return date.toDateString() === new Date().toDateString() ? events : tomorrowEvents; }, getTodayEvents() { return events; },
     getCalendarStatus() { return 'Calendar updated Sep 23, 10:00.'; }, getLastError() { return 'Internal error must not appear on mobile'; },
     isRefreshing() { return false; }, shouldAnimateRefreshStatus() { return false; }, getCachedDate() { return '2026-09-23'; },
     getPillOffset() { return 0; }, async refreshToday() {},
@@ -98,7 +101,7 @@ test('notification containers stay detached until mounted in the editor or readi
     },
     async addEventAsTask() {}, async createEventMeeting() {},
   };
-  notifications = new MeetingNotifications(plugin, { getTodayPath() { return 'Today.md'; } });
+  notifications = new MeetingNotifications(plugin, { getTodayPath() { return 'Today.md'; }, getPathForDate(date) { return date.toDateString() === new Date().toDateString() ? 'Today.md' : 'Tomorrow.md'; } });
   notifications.onload();
   let banner = preview.querySelector('.wcm-notifications');
   assert.equal(banner.previousElementSibling, sizer);
@@ -228,6 +231,58 @@ test('notification containers stay detached until mounted in the editor or readi
   assert.equal(desktopContainer.querySelector('.wcm-calendar-status'), null);
   assert.equal(desktopContainer.querySelector('.wcm-reload'), null);
   await desktopSidebar.onClose();
+  // Separate date groups render correctly in both open reading panes and editors.
+  tomorrowEvents = [{...event,key:'tomorrow',title:'Tomorrow only'}];
+  const tomorrowContent = create.call(win.document.body, 'div');
+  const tomorrowPreview = create.call(tomorrowContent, 'div', {cls:'markdown-preview-view'});
+  const tomorrowView = new MarkdownView();
+  Object.assign(tomorrowView,{file:{path:'Tomorrow.md'},contentEl:tomorrowContent});
+  plugin.app.workspace.getLeavesOfType=()=>[{view},{view:tomorrowView}];
+  subscriber();
+  assert.equal(preview.querySelector('.wcm-event-title').textContent,event.title);
+  assert.equal(tomorrowPreview.querySelector('.wcm-event-title').textContent,'Tomorrow only');
+  assert.equal(tomorrowPreview.querySelector('[data-icon=list-todo]').getAttribute('aria-label'),"Add to tomorrow's tasks");
+  let actionDate;
+  plugin.addEventAsTask=async (_event,date)=>{actionDate=date;};
+  tomorrowPreview.querySelector('[data-icon=list-todo]').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  const expectedDate=new Date();expectedDate.setDate(expectedDate.getDate()+1);
+  assert.equal(actionDate.toDateString(),expectedDate.toDateString());
+  editor.state.field(editorInfoField).file.path='Tomorrow.md';editor.dispatch({});
+  assert.equal(editor.dom.querySelector('.wcm-event-title').textContent,'Tomorrow only');
+  editor.state.field(editorInfoField).file.path='Other.md';editor.dispatch({});
+  assert.equal(editor.dom.querySelector('.wcm-notifications'),null);
+  editor.state.field(editorInfoField).file.path='Today.md';editor.dispatch({});
+
+  // Sidebar changes retain the footer during its fade, and interrupt cleanly.
+  sidebarOpen=true;subscriber();
+  const fading=preview.querySelector('.wcm-notifications');
+  assert.ok(fading.classList.contains('wcm-notifications-suppressed'));
+  assert.equal(fading.inert,true);
+  assert.ok(editor.dom.querySelector('.wcm-notifications-suppressed'));
+  sidebarOpen=false;subscriber();
+  assert.equal(preview.querySelector('.wcm-notifications'),fading);
+  assert.equal(fading.inert,false);
+  sidebarOpen=true;subscriber();
+  await new Promise(resolve=>setTimeout(resolve,220));
+  assert.equal(preview.querySelector('.wcm-notifications'),null);
+  assert.equal(editor.dom.querySelector('.wcm-notifications'),null);
+  event.sidebarHidden=true;sidebarOpen=false;subscriber();
+  assert.equal(preview.querySelector('.wcm-notifications'),null,'sidebar interactions cannot resurrect banners');
+  assert.ok(tomorrowPreview.querySelector('.wcm-notifications'),'untouched meetings return');
+  delete event.sidebarHidden;subscriber();
+
+  // Check the phone layout rules without driving an app or browser.
+  const css=require('node:fs').readFileSync(root+'/styles.css','utf8');
+  const style=win.document.createElement('style');
+  style.textContent=css.slice(css.indexOf('/* A single-line heading'));
+  win.document.head.append(style);win.document.body.classList.add('is-mobile');
+  const compact=preview.querySelector('.wcm-notification');
+  assert.equal(win.getComputedStyle(compact).padding,'0px');
+  assert.equal(win.getComputedStyle(compact.querySelector('.wcm-notification-content')).gridTemplateColumns,'auto minmax(0, 1fr)');
+  assert.equal(win.getComputedStyle(compact.querySelector('.wcm-event-title')).whiteSpace,'nowrap');
+  assert.equal(win.getComputedStyle(compact.querySelector('.wcm-event-actions')).gridTemplateColumns,'repeat(3, minmax(0, 1fr))');
+  assert.equal(win.getComputedStyle(compact.querySelector('button')).height,'44px');
   view.file.path = 'Other.md'; subscriber();
   assert.equal(preview.querySelector('.wcm-notifications'), null);
 });

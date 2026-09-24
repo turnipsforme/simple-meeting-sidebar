@@ -2,6 +2,7 @@ import type { Extension } from "@codemirror/state";
 import { Notice, Platform, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
 import type { CalendarService } from "./calendar-service";
 import { calendarWindow, coversLocalDate, NOTIFICATION_MAX_AGE_MS, parseSnapshot, SNAPSHOT_PATH, snapshotAllowsNotifications, type CalendarSnapshot } from "./calendar-snapshot";
+import { DismissalStore, DISMISSALS_PATH } from "./dismissal-store";
 import { SnapshotStore } from "./snapshot-store";
 import { DailyNoteService } from "./daily-note-service";
 import {
@@ -41,6 +42,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
   private readonly listeners = new Set<() => void>();
   private calendarService: CalendarService | null = null;
   private snapshotStore!: SnapshotStore;
+  private dismissals!: DismissalStore;
   private snapshot: CalendarSnapshot | null = null;
   private snapshotVerified = false;
   private snapshotGeneration = 0;
@@ -67,6 +69,9 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
       () => this.settings.ignoredPeople,
     );
     this.snapshotStore = new SnapshotStore(this.app);
+    this.dismissals = new DismissalStore(this.app);
+    await this.dismissals.load();
+    this.dismissals.apply(this.settings.cachedEvents);
     this.meetingService = new MeetingService(
       this.app,
       dailyNotes,
@@ -134,6 +139,15 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
       if (this.clockTimer !== null) window.clearTimeout(this.clockTimer);
     });
     const snapshotChanged = (path: string) => {
+      if (path.startsWith(`${DISMISSALS_PATH}/`)) {
+        void this.dismissals.read(path).then(() => {
+          if (this.stopped) return;
+          this.dismissals.apply(this.settings.cachedEvents);
+          this.saveLocalState();
+          this.renderViews();
+        });
+        return;
+      }
       if (path !== SNAPSHOT_PATH || !this.isSnapshotReader()) return;
       this.snapshotGeneration++;
       this.snapshotVerified = false;
@@ -201,10 +215,16 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
   isSnapshotReader(): boolean { return !this.canUseAppleCalendar(); }
   isPublishing(): boolean { return this.canUseAppleCalendar(); }
 
-  getNotificationEvents(): CalendarEvent[] {
+  getNotificationEvents(date = new Date()): CalendarEvent[] {
     if (this.isSnapshotReader() && (!snapshotAllowsNotifications(this.snapshot, this.snapshotVerified)
       || !this.calendarSelectionMatches())) return [];
-    return this.getTodayEvents();
+    return this.getEventsForDate(localDateKey(date))
+      .filter((event) => !event.sidebarHidden && (event.allDay || Date.parse(event.start) > Date.now()));
+  }
+
+  shouldHideInlineNotifications(): boolean {
+    return !Platform.isMobile && this.settings.notificationsOnlyWhenSidebarHidden
+      && this.app.workspace.rightSplit?.collapsed === false;
   }
 
   getCalendarStatus(): string {
@@ -261,13 +281,14 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
     }
   }
 
-  async addEventAsTask(event: CalendarEvent): Promise<void> {
-    const changed = await this.meetingService.addTask(event);
+  async addEventAsTask(event: CalendarEvent, date?: Date): Promise<void> {
+    const changed = await this.meetingService.addTask(event, date);
     await this.updateEventState(event.key, { taskAdded: true, sidebarHidden: true });
-    new Notice(changed ? `Added “${event.title}” to today's tasks.` : `“${event.title}” is already in today's tasks.`);
+    const day = date && localDateKey(date) !== localDateKey(new Date()) ? "tomorrow's" : "today's";
+    new Notice(changed ? `Added “${event.title}” to ${day} tasks.` : `“${event.title}” is already in ${day} tasks.`);
   }
 
-  async createEventMeeting(event: CalendarEvent): Promise<void> {
+  async createEventMeeting(event: CalendarEvent, date?: Date): Promise<void> {
     if (event.meetingNotePath) {
       const existing = this.app.vault.getAbstractFileByPath(event.meetingNotePath);
       if (existing instanceof TFile) {
@@ -277,7 +298,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
       }
     }
 
-    const result = await this.meetingService.createMeeting(event);
+    const result = await this.meetingService.createMeeting(event, date);
     if (!result) return;
     await this.updateEventState(event.key, {
       meetingNotePath: result.file.path,
@@ -371,7 +392,8 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
           this.snapshotVerified = JSON.stringify(incoming) === JSON.stringify(this.snapshot);
           if (!this.snapshotVerified || !manual) return;
         }
-        this.settings.cachedEvents = mergeRefreshedEventState(incoming.events, this.settings.cachedEvents, !manual);
+        this.settings.cachedEvents = mergeRefreshedEventState(incoming.events, this.settings.cachedEvents, true);
+        this.dismissals.apply(this.settings.cachedEvents);
         this.snapshot = incoming;
         this.settings.cachedDate = localDateKey(new Date(incoming.generatedAt));
         this.settings.lastSuccessfulRefreshAt = incoming.generatedAt;
@@ -386,6 +408,12 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
 
   private onResume(): void {
     if (this.stopped) return;
+    void this.dismissals.load().then(() => {
+      if (this.stopped) return;
+      this.dismissals.apply(this.settings.cachedEvents);
+      this.saveLocalState();
+      this.renderViews();
+    });
     this.indexedEvents = null; // Local dates may have changed after travelling.
     this.scheduleClock();
     if (this.isSnapshotReader()) {
@@ -405,7 +433,11 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
     const midnight = new Date();
     midnight.setHours(24, 0, 0, 0);
     const expires = (this.snapshot?.generatedAt ?? 0) + NOTIFICATION_MAX_AGE_MS;
-    const next = this.isSnapshotReader() && expires > Date.now() ? Math.min(expires, midnight.getTime()) : midnight.getTime();
+    let next = this.isSnapshotReader() && expires > Date.now() ? Math.min(expires, midnight.getTime()) : midnight.getTime();
+    for (const event of this.settings.cachedEvents) {
+      const start = Date.parse(event.start);
+      if (!event.allDay && start > Date.now()) next = Math.min(next, start);
+    }
     this.clockTimer = window.setTimeout(() => {
       this.renderViews();
       this.scheduleClock();
@@ -439,7 +471,8 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         selectedCalendars, events: filterCalendarEvents(freshEvents, selectedCalendars, false),
       }));
-      this.settings.cachedEvents = mergeRefreshedEventState(freshEvents, this.settings.cachedEvents, !manual);
+      this.settings.cachedEvents = mergeRefreshedEventState(freshEvents, this.settings.cachedEvents, true);
+      this.dismissals.apply(this.settings.cachedEvents);
       this.snapshot = snapshot;
       this.settings.cachedDate = localDateKey(new Date(generatedAt));
       this.settings.lastSuccessfulRefreshAt = generatedAt;
@@ -475,6 +508,9 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
     this.saveLocalState();
     if (animateLayout) this.notifications?.prepareDismissal(eventKey);
     this.renderViews();
+    if (patch.sidebarHidden || patch.notificationHidden) {
+      await this.dismissals.dismiss(event, patch.sidebarHidden ? "sidebar" : "notification");
+    }
   }
 
   private refreshIsDue(): boolean {

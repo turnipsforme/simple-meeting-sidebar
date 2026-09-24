@@ -33,6 +33,7 @@ interface PreviewFooter {
   root: HTMLElement;
   observer: MutationObserver;
   widget: MeetingWidget | null;
+  path: string;
 }
 
 interface NotificationRow {
@@ -45,9 +46,12 @@ export class MeetingNotifications extends Component {
   readonly extension: Extension;
   private readonly editors = new Set<EditorView>();
   private readonly previews = new Map<HTMLElement, PreviewFooter>();
-  private todayPath = "";
+  private readonly widgets = new Map<string, MeetingWidget>();
+  private readonly eventsByPath = new Map<string, CalendarEvent[]>();
+  private suppressed = false;
+  private suppressionComplete = false;
+  private suppressionTimer: number | undefined;
   private signature = "";
-  private widget: MeetingWidget | null = null;
   private readonly rows = new WeakMap<HTMLElement, Map<string, NotificationRow>>();
   private readonly motion = new NotificationMotion();
 
@@ -57,7 +61,7 @@ export class MeetingNotifications extends Component {
     this.extension = [
       notificationField(
         (state) => state.field(editorInfoField, false)?.file?.path,
-        (path) => path === this.todayPath ? this.widget : null,
+        (path) => this.widgets.get(path ?? "") ?? null,
       ),
       ViewPlugin.fromClass(class {
         constructor(readonly view: EditorView) { editors.add(view); }
@@ -76,6 +80,7 @@ export class MeetingNotifications extends Component {
   }
 
   onunload(): void {
+    window.clearTimeout(this.suppressionTimer);
     this.motion.destroy();
     for (const footer of this.previews.values()) this.removePreview(footer);
     this.previews.clear();
@@ -84,27 +89,50 @@ export class MeetingNotifications extends Component {
   prepareDismissal(key: string): void { this.motion.prepareDismissal(key); }
 
   private refresh(): void {
-    const events = this.plugin.getNotificationEvents().filter((event) => !event.notificationHidden);
-    const todayPath = this.dailyNotes.getTodayPath();
-    const signature = JSON.stringify([todayPath, this.plugin.settings.monochromeNotifications,
-      events, events.map((event) => this.plugin.isEventBusy(event.key))]);
+    const suppressed = this.plugin.shouldHideInlineNotifications();
+    if (suppressed !== this.suppressed) {
+      window.clearTimeout(this.suppressionTimer);
+      this.suppressed = suppressed;
+      this.suppressionComplete = false;
+      if (suppressed) this.suppressionTimer = window.setTimeout(() => {
+        this.suppressionComplete = true;
+        this.refresh();
+      }, 200);
+    }
+    const days = [new Date(), new Date()];
+    days[1]!.setDate(days[0]!.getDate() + 1);
+    const groups = days.map((date) => ({
+      date, path: this.dailyNotes.getPathForDate(date),
+      events: this.suppressionComplete ? [] : this.plugin.getNotificationEvents(date)
+        .filter((event) => !event.notificationHidden && !event.sidebarHidden),
+    }));
+    const signature = JSON.stringify([this.suppressed, this.plugin.settings.monochromeNotifications,
+      groups.map(({path, events}) => ({path, events})), groups.map(({ events }) => events.map((event) => this.plugin.isEventBusy(event.key)))]);
     if (signature !== this.signature) {
       this.signature = signature;
-      this.todayPath = todayPath;
-      this.widget = events.length ? new MeetingWidget(
-        (container, view) => this.render(container, events, view),
-        (container) => this.motion.remove(container),
-      ) : null;
+      this.widgets.clear();
+      this.eventsByPath.clear();
+      for (const { path, events, date } of groups) {
+        if (!events.length) continue;
+        this.eventsByPath.set(path, events);
+        this.widgets.set(path, new MeetingWidget(
+          (container, view) => this.render(container, events, date, view),
+          (container) => this.motion.remove(container),
+        ));
+      }
       for (const editor of this.editors) editor.dispatch({ effects: refreshNotifications.of(null) });
     }
     this.refreshPreviews();
   }
 
-  private render(container: HTMLElement, events: CalendarEvent[], editor?: EditorView): void {
+  private render(container: HTMLElement, events: CalendarEvent[], date: Date, editor?: EditorView): void {
     // A widget can be redrawn while persistence is in flight, before refresh()
     // replaces its captured event list. Never resurrect a newly hidden event.
     const visibleEvents = events.filter((event) => !event.notificationHidden && !event.sidebarHidden);
     container.className = "wcm-notifications";
+    container.classList.toggle("wcm-notifications-suppressed", this.suppressed);
+    container.inert = this.suppressed;
+    container.setAttribute("aria-hidden", String(this.suppressed));
     container.classList.toggle("wcm-notifications-monochrome", this.plugin.settings.monochromeNotifications);
     container.setAttribute("role", "region");
     container.setAttribute("aria-label", "Meeting notifications");
@@ -118,7 +146,8 @@ export class MeetingNotifications extends Component {
     }
     let position: ChildNode | null = container.firstChild;
     for (const event of visibleEvents) {
-      const signature = JSON.stringify([event, this.plugin.isEventBusy(event.key)]);
+      const signature = JSON.stringify([event, this.plugin.isEventBusy(event.key),
+        date.toDateString() === new Date().toDateString()]);
       const old = previous.get(event.key);
       let element = old?.element;
       // A busy-state render must not replace the row whose exit is still visible
@@ -126,7 +155,7 @@ export class MeetingNotifications extends Component {
       if (!old || (old.signature !== signature && !old.element.classList.contains("is-dismissing"))) {
         // Keep staging detached; Obsidian's Node helpers append to their receiver.
         const holder = container.ownerDocument.createElement("div");
-        renderEventRow(holder, event, this.plugin, "notification");
+        renderEventRow(holder, event, this.plugin, "notification", date);
         element = holder.firstElementChild as HTMLElement;
         if (!old) element.classList.add("wcm-notification-enter");
         if (old) {
@@ -152,10 +181,10 @@ export class MeetingNotifications extends Component {
 
   private refreshPreviews(): void {
     const active = new Set<HTMLElement>();
-    if (this.widget) {
+    if (this.widgets.size) {
       for (const leaf of this.plugin.app.workspace.getLeavesOfType("markdown")) {
         const view = leaf.view;
-        if (!(view instanceof MarkdownView) || view.file?.path !== this.todayPath || view.getMode() !== "preview") continue;
+        if (!(view instanceof MarkdownView) || !view.file || !this.widgets.has(view.file.path) || view.getMode() !== "preview") continue;
         const preview = view.contentEl.querySelector<HTMLElement>(".markdown-preview-view");
         if (!preview) continue;
         active.add(preview);
@@ -166,11 +195,12 @@ export class MeetingNotifications extends Component {
           const observer = new (preview.win as Window & { MutationObserver: typeof MutationObserver }).MutationObserver(() => {
             if (this.previews.has(preview)) this.placePreview(preview);
           });
-          footer = { root, observer, widget: null };
+          footer = { root, observer, widget: null, path: view.file.path };
           this.previews.set(preview, footer);
-          // Observe only reading panes for today's note, and only while they have meetings.
+          // Observe only daily-note reading panes that have upcoming meetings.
           observer.observe(preview, { childList: true, subtree: true });
         }
+        footer.path = view.file.path;
         this.placePreview(preview);
       }
     }
@@ -183,12 +213,16 @@ export class MeetingNotifications extends Component {
 
   private placePreview(preview: HTMLElement): void {
     const footer = this.previews.get(preview);
-    if (!footer || !this.widget) return;
-    if (footer.widget !== this.widget) {
+    if (!footer) return;
+    const widget = this.widgets.get(footer.path);
+    if (!widget) return;
+    if (footer.widget !== widget) {
       // The same renderer is used in reading mode and the editor widget.
-      const events = this.plugin.getNotificationEvents().filter((event) => !event.notificationHidden);
-      this.render(footer.root, events);
-      footer.widget = this.widget;
+      const events = this.eventsByPath.get(footer.path) ?? [];
+      const date = new Date();
+      if (footer.path !== this.dailyNotes.getTodayPath()) date.setDate(date.getDate() + 1);
+      this.render(footer.root, events, date);
+      footer.widget = widget;
     }
     const influx = preview.querySelector<HTMLElement>(":scope > .influx-preview-wrapper");
     const sizer = preview.querySelector<HTMLElement>(":scope > .markdown-preview-sizer");

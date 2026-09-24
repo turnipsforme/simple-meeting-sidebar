@@ -39,19 +39,24 @@ const DEFAULT_DAILY_SETTINGS: DailyNoteSettings = {
 
 const obsidianMoment = moment as unknown as {
   (): moment.Moment;
+  (input: Date): moment.Moment;
   (input: string, format: string, strict: boolean): moment.Moment;
 };
 
 export class DailyNoteService {
   constructor(private readonly app: App) {}
 
-  getTodayPath(): string {
+  getTodayPath(): string { return this.getPathForDate(new Date()); }
+
+  getPathForDate(date: Date): string {
     const settings = this.getSettings();
-    return this.buildPath(obsidianMoment().format(settings.format), settings.folder);
+    return this.buildPath(obsidianMoment(date).format(settings.format), settings.folder);
   }
 
-  async getOrCreateToday(): Promise<TFile> {
-    const date = obsidianMoment();
+  async getOrCreateToday(): Promise<TFile> { return this.getOrCreateDate(new Date()); }
+
+  async getOrCreateDate(day: Date): Promise<TFile> {
+    const date = obsidianMoment(day);
     const settings = this.getSettings();
     const path = this.buildPath(date.format(settings.format), settings.folder);
     const existing = this.app.vault.getAbstractFileByPath(path);

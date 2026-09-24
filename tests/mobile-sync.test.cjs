@@ -51,7 +51,7 @@ test.before(async () => {
 function snapshot(age=0, publisher='mac-a', events) {
   const now=new Date(); const start=new Date(now); start.setHours(0,0,0,0); start.setDate(start.getDate()-1);
   const end=new Date(start); end.setDate(end.getDate()+9);
-  const time=new Date(now); time.setHours(12,0,0,0);
+  const time=new Date(now); time.setTime(Date.now()+60_000);
   return {version:1,publisher,generatedAt:Date.now()-age,coverageStart:start.toISOString(),coverageEnd:end.toISOString(),timeZone:'Europe/Dublin',selectedCalendars:null,
     events:events ?? [{id:'one',externalId:'shared-one',key:'one',title:'Meeting',start:time.toISOString(),end:new Date(+time+3600000).toISOString(),allDay:false,calendar:'Work',hasGoogleMeet:false}]};
 }
@@ -66,13 +66,13 @@ function fixture({shared=null, local=null}={}) {
       on(name,fn){ if(!listeners.has(name))listeners.set(name,[]); listeners.get(name).push(fn); },
       getAbstractFileByPath:path=>files.get(path)??null,
       read:async file=>{reads++;return contents.get(file.path);},
-      createFolder:async path=>{const folder=Object.assign(new api.TFolder(),{path});files.set(path,folder);return folder;},
+      createFolder:async path=>{const folder=Object.assign(new api.TFolder(),{path,children:[]});files.set(path,folder);return folder;},
       create:async (path,content)=>{if(files.has(path))throw Error('exists');const file=put(path,content);writes++;return file;},
       process:async (file,fn)=>{const content=fn(contents.get(file.path));contents.set(file.path,content);writes++;return content;},
     },
     workspace:{onLayoutReady:fn=>{layout=fn;},getLeavesOfType:()=>[],getRightLeaf:()=>{opens++;throw Error('auto-open');}},
   };
-  function put(path,content) { const file=Object.assign(new api.TFile(),{path,stat:{size:Buffer.byteLength(content)}});files.set(path,file);contents.set(path,content);return file; }
+  function put(path,content) { const file=Object.assign(new api.TFile(),{path,stat:{size:Buffer.byteLength(content)}});files.set(path,file);contents.set(path,content);const parent=files.get(path.slice(0,path.lastIndexOf("/")));if(parent?.children&&!parent.children.some(f=>f.path===path))parent.children.push(file);return file; }
   const plugin=new api.Main(); Object.assign(plugin,{app,manifest:{id:'simple-meeting-sidebar'},loadData:async()=>shared,saveData:async data=>{savedShared=data;}});
   return {plugin,app,put,files,contents,emit:(name,...args)=>(listeners.get(name)||[]).forEach(fn=>fn(...args)),layout:()=>layout(),
     get opens(){return opens;},get reads(){return reads;},get writes(){return writes;},get local(){return persisted;},get shared(){return savedShared;},
@@ -226,4 +226,68 @@ test('rendering reuses the date index instead of rescanning nine days, and uncha
   assert.equal(f.plugin.getTodayEvents().length,9000);const indexed=startReads;
   for(let i=0;i<10;i++)f.plugin.getTodayEvents();
   assert.equal(startReads,indexed,'no date parsing on subsequent renders');f.close();
+});
+
+test('dismissals sync both directions and simultaneous offline actions survive refresh and restart',async()=>{
+  const a=fixture(), b=fixture();
+  const data=snapshot();data.events.push({...data.events[0],id:'two',externalId:'shared-two',key:'two'});
+  for(const f of [a,b]) {await f.plugin.onload();f.put(path,JSON.stringify(data));await f.plugin.refreshToday();}
+  await Promise.all([
+    a.plugin.dismissEvent(a.plugin.settings.cachedEvents[0],true),
+    b.plugin.dismissEvent(b.plugin.settings.cachedEvents[1]),
+  ]);
+  const records=new Map([...a.contents,...b.contents].filter(([name])=>name.includes('/dismissals/')));
+  assert.equal(records.size,2);
+  for(const f of [a,b]) {
+    for(const [name,content] of records) {f.put(name,content);await f.plugin.dismissals.read(name);}
+    f.plugin.dismissals.apply(f.plugin.settings.cachedEvents);
+    assert.equal(f.plugin.settings.cachedEvents[0].notificationHidden,true);
+    assert.equal(f.plugin.settings.cachedEvents[1].sidebarHidden,true);
+    await f.plugin.refreshToday(true);
+    assert.equal(f.plugin.getTodayEvents().length,1,'notification dismissal leaves sidebar available');
+    assert.equal(f.plugin.getTodayEvents()[0].notificationHidden,true,'manual reload never resurrects a dismissal');
+  }
+  const restarted=fixture();
+  await restarted.app.vault.createFolder('Meetings/_calendar/dismissals');
+  for(const [name,content] of records) restarted.put(name,content);
+  await restarted.plugin.onload();restarted.put(path,JSON.stringify(data));await restarted.plugin.refreshToday();
+  assert.equal(restarted.plugin.getTodayEvents().length,1);
+  assert.equal(restarted.plugin.getTodayEvents()[0].notificationHidden,true);
+  for(const f of [a,b,restarted])f.close();
+});
+
+test('a synced sidebar action removes banners on a Mac through vault notifications',async()=>{
+  const phone=fixture();await phone.plugin.onload();const data=snapshot();phone.put(path,JSON.stringify(data));await phone.plugin.refreshToday();
+  await phone.plugin.dismissEvent(phone.plugin.settings.cachedEvents[0]);
+  const mac=fixture({shared:{refreshSchedule:'manual'}});api.Platform.isMacOS=true;api.Platform.isMobile=false;
+  await mac.plugin.onload();mac.plugin.calendarService={fetchRange:async()=>data.events};await mac.plugin.refreshToday();
+  assert.equal(mac.plugin.getNotificationEvents().length,1);
+  const [name,content]=[...phone.contents].find(([name])=>name.includes('/dismissals/'));
+  const file=mac.put(name,content);mac.emit('create',file);await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(mac.plugin.getTodayEvents().length,0);assert.equal(mac.plugin.getNotificationEvents().length,0);
+  phone.close();mac.close();
+});
+
+test('only upcoming banners appear on their date; start-time expiry leaves sidebar rows intact',async()=>{
+  const f=fixture();await f.plugin.onload();const data=snapshot();
+  const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);tomorrow.setHours(10,0,0,0);
+  data.events.push({...data.events[0],id:'tomorrow',externalId:'tomorrow',start:tomorrow.toISOString(),end:new Date(+tomorrow+3600000).toISOString()});
+  f.put(path,JSON.stringify(data));await f.plugin.refreshToday();
+  assert.equal(f.plugin.getNotificationEvents().length,1);assert.equal(f.plugin.getNotificationEvents(tomorrow)[0].id,'tomorrow');
+  const scheduled=timers.get(f.plugin.clockTimer);assert.ok(scheduled.ms<=60_050,'expiry is scheduled at the next start');
+  const originalNow=Date.now;Date.now=()=>Date.parse(data.events[0].start);
+  try {scheduled.fn();assert.equal(f.plugin.getNotificationEvents().length,0);assert.equal(f.plugin.getTodayEvents().length,1);}
+  finally {Date.now=originalNow;}
+  f.close();
+});
+
+test('sidebar suppression defaults on for desktop and never hides mobile notifications',async()=>{
+  const f=fixture();await f.plugin.onload();f.app.workspace.rightSplit={collapsed:false};
+  assert.equal(f.plugin.settings.notificationsOnlyWhenSidebarHidden,true);
+  assert.equal(f.plugin.shouldHideInlineNotifications(),false);
+  api.Platform.isMacOS=true;api.Platform.isMobile=false;
+  assert.equal(f.plugin.shouldHideInlineNotifications(),true);
+  f.app.workspace.rightSplit.collapsed=true;assert.equal(f.plugin.shouldHideInlineNotifications(),false);
+  f.app.workspace.rightSplit.collapsed=false;f.plugin.settings.notificationsOnlyWhenSidebarHidden=false;
+  assert.equal(f.plugin.shouldHideInlineNotifications(),false);f.close();
 });

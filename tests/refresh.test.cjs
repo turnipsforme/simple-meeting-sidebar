@@ -57,13 +57,14 @@ test('dismissal saves device-local state before capturing layout', async () => {
   plugin.settings = { cachedEvents: [event] };
   const order = [];
   plugin.saveLocalState = () => order.push('saved');
+  plugin.dismissals = { dismiss: async () => order.push('synced') };
   plugin.notifications = { prepareDismissal: key => order.push(key) };
   plugin.renderViews = () => order.push('render');
   await plugin.dismissEvent(event, true, true);
-  assert.deepEqual(order, ['saved', 'meeting', 'render']);
+  assert.deepEqual(order, ['saved', 'meeting', 'render', 'synced']);
   order.length = 0;
   await plugin.dismissEvent(event, true);
-  assert.deepEqual(order, ['saved', 'render']);
+  assert.deepEqual(order, ['saved', 'render', 'synced']);
   order.length = 0;
   plugin.saveLocalState = () => { throw new Error('save failed'); };
   await assert.rejects(plugin.dismissEvent(event, true, true), /save failed/);

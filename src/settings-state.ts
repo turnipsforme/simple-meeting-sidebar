@@ -27,6 +27,8 @@ export function loadPluginSettings(value: unknown): StoredPluginSettings {
       ? raw.onlyMeetingLinkEvents
       : raw.onlyGoogleMeetEvents === true,
     meetingNotifications: raw.meetingNotifications === true,
+    notificationsOnlyWhenSidebarHidden: typeof raw.notificationsOnlyWhenSidebarHidden === "boolean"
+      ? raw.notificationsOnlyWhenSidebarHidden : DEFAULT_SETTINGS.notificationsOnlyWhenSidebarHidden,
     monochromeNotifications: typeof raw.monochromeNotifications === "boolean"
       ? raw.monochromeNotifications
       : DEFAULT_SETTINGS.monochromeNotifications,

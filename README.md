@@ -1,6 +1,6 @@
 # Simple Meeting Sidebar
 
-> **macOS only.** Simple Meeting Sidebar uses Apple Calendar and does not run on Windows, Linux, iPhone, iPad, or Android.
+> **Mac + mobile.** Macs read Apple Calendar and publish a vault snapshot. iPhone, iPad, Android, Windows and Linux read that synced snapshot. Requires Obsidian 1.8.7 or newer.
 
 A simpler, more minimal meetings plugin. There is no setup beyond allowing your Mac's Calendar access and picking which calendars you would like included.
 
@@ -12,7 +12,27 @@ Simple Meeting Sidebar shows today's Apple Calendar events in the right sidebar.
 2. Allow Calendar access when macOS asks. The plugin only reads events and never writes to Apple Calendar.
 3. Open the plugin settings and choose which Apple calendars to include.
 
-The plugin adds its view to the right sidebar on first launch. If you close it, run **Simple Meeting Sidebar: Toggle meetings sidebar** to bring it back. Drag the small pill at the top to reposition the view, or click it to refresh today's meetings.
+On desktop, the plugin adds its view to the right sidebar on first launch. Mobile opens it only when you ask. If you close it, run **Simple Meeting Sidebar: Toggle meetings sidebar** to bring it back. Drag the small pill at the top to reposition the view, or click it to refresh today's meetings.
+
+## Mobile and multiple Macs
+
+Every Mac publishes after a successful calendar refresh. There is no publisher toggle. Use the same Apple Calendar accounts on your Macs; enabled calendars remain in the normal synced plugin settings. A newer fetch wins, based on its start time. Devices remember the newest valid snapshot they have received and reject older deliveries. Keep device clocks set automatically.
+
+1. Update the plugin on your Mac and phone, then refresh meetings on the Mac.
+2. Sync `Meetings/_calendar/events.json` as an ordinary vault file. The path is fixed, independent of your meeting-note folder and settings profile.
+3. With Obsidian Sync, enable **Sync all other types** on each device and ensure `Meetings/_calendar` is not excluded. [Obsidian's sync settings](https://obsidian.md/help/sync/settings) explain the device-specific options.
+4. Enable **Meeting notifications** if wanted. Mobile uses the same Obsidian editor extension and reading-mode footer, with wrapping titles and visible 44px touch controls.
+5. Open **Toggle meetings sidebar** when you want the list. The plugin never opens the mobile sidebar automatically. **Reload synced meetings** reads the file already received on the phone; it does not ask a Mac to refresh.
+
+Mobile shows an update time and distinguishes an empty day from missing data. Saved meetings remain available when old, but banners appear only after a valid snapshot read, with complete coverage of the phone's current day, matching calendar selection, and a fetch less than one hour old. Invalid, missing, conflicting or older files suppress banners while keeping the last valid sidebar data. The Mac refresh schedule stays unchanged, so a daily schedule gives a limited mobile banner window; choose hourly refresh if you want more frequent updates while a Mac is open. A fresh snapshot still cannot detect a cancellation that has not reached Apple Calendar or vault sync yet.
+
+Mobile reads on startup, snapshot changes, and app resume. It does not poll or contact Apple Calendar. One local timer updates the date at midnight and removes expired banners. Desktop sidebar and banner presentation stay unchanged; freshness labels and reload controls appear only on mobile.
+
+Dismissals and action state stay on each device. Notes and daily-note tasks sync normally. New notes carry a `simple-meeting-event` property, and new tasks carry an invisible event marker. Other devices recognise these after syncing, including title changes and separate recurring occurrences. Apple's [external calendar identifier](https://developer.apple.com/documentation/eventkit/ekcalendaritem/calendaritemexternalidentifier) is used when available; calendars without a stable external identifier cannot guarantee matching across Macs.
+
+Simultaneous offline edits cannot be locked across devices. If multiple synced note files have the same event ID, creating the meeting again offers a chooser and leaves every note intact. Duplicate task lines left by a sync conflict are not deleted automatically, but the plugin will not add another copy of the marked event. Existing unmarked notes retain their local association during migration; they cannot be identified reliably on a different device. Moving a meeting to a different start time creates a new occurrence identity.
+
+The test build is prepared on `feature/mobile-calendar-snapshot`. The unchanged 0.6.0 baseline is tagged `baseline/pre-mobile-0.6.0`. Switching back to that tag restores the old code; keep a backup of plugin `data.json` before testing if you also want to restore the old synced cache/action layout.
 
 ## Use
 
@@ -69,7 +89,7 @@ obsidian://adv-uri?vault=YourVault&commandid=simple-meeting-sidebar%3Arefresh-to
 
 ## Privacy and permissions
 
-Simple Meeting Sidebar accesses Apple Calendar data outside your vault, including event titles, times, locations, calendar names, and guest names. It checks event URLs, locations, and notes for Google Meet, Zoom, and Microsoft Teams links; URLs and notes are not returned by the helper or saved by the plugin. Calendar data is processed locally on your Mac and cached only in the plugin's settings. The plugin does not use network services, collect telemetry, or write to Apple Calendar.
+Simple Meeting Sidebar accesses Apple Calendar data outside your vault, including event titles, times, locations, calendar names, and guest names. It checks event URLs, locations, and notes for Google Meet, Zoom, and Microsoft Teams links; URLs and notes are not returned by the helper or saved by the plugin. Calendar data is processed locally on your Mac. Selected calendars are saved to `Meetings/_calendar/events.json`, which your vault sync service can transfer to your other devices. The snapshot contains yesterday, today, and the next seven days. Cached data and dismissals are saved in device-local vault storage, separately from synced plugin settings. The plugin does not use network services, collect telemetry, or write to Apple Calendar.
 
 ## Apple Calendar helper
 
@@ -79,7 +99,7 @@ The helper has three jobs:
 
 - Ask macOS for Calendar permission and report a clear error if access is denied.
 - List the names of available Apple calendars for the plugin settings.
-- Read occurrences from yesterday and today, returning only the event identifier, title, start and end times, all-day status, calendar name, optional location, optional attendee names, and whether a supported meeting link was found.
+- Read occurrences from yesterday through the next seven days, returning only local and external event identifiers, title, start and end times, all-day status, calendar name, optional location, optional attendee names, and whether a supported meeting link was found.
 
 The helper cannot create, edit, accept, decline, or delete calendar events. It cannot read files in your vault, make network requests, or run in the background without Obsidian. On macOS 14 and later, Apple labels the required EventKit permission as full Calendar access even though this helper only performs the read operations listed above. Some calendar providers may omit locations or attendee display names, so those details are not guaranteed to appear.
 

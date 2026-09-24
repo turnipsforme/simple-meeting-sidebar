@@ -3,6 +3,7 @@ import Foundation
 
 private struct CalendarEventOutput: Codable {
     let id: String
+    let externalId: String?
     let title: String
     let start: Date
     let end: Date
@@ -72,6 +73,7 @@ private struct CalendarHelper {
                 .map { event in
                     CalendarEventOutput(
                         id: event.eventIdentifier ?? event.calendarItemExternalIdentifier ?? "",
+                        externalId: event.calendarItemExternalIdentifier,
                         title: event.title ?? "Untitled event",
                         start: event.startDate,
                         end: event.endDate,
@@ -172,6 +174,7 @@ private struct CalendarHelper {
         let fixture = [
             CalendarEventOutput(
                 id: "self-test",
+                externalId: "shared-event",
                 title: "Test meeting",
                 start: Date(timeIntervalSince1970: 0),
                 end: Date(timeIntervalSince1970: 1800),

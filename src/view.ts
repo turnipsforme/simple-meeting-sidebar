@@ -1,4 +1,4 @@
-import { ItemView, Modal, TFile, setIcon, type App, type WorkspaceLeaf } from "obsidian";
+import { ItemView, Modal, Platform, TFile, setIcon, type App, type WorkspaceLeaf } from "obsidian";
 import type { CalendarEvent } from "./models";
 import { formatMeetingTime } from "./utils";
 import { RefreshStatus } from "./refresh-status";
@@ -15,6 +15,8 @@ export interface SimpleMeetingSidebarController {
   getTodayAndYesterdayEvents(): CalendarEventGroups;
   getCachedDate(): string;
   getLastError(): string;
+  getCalendarStatus(): string;
+  hasCoverage(date: Date): boolean;
   isRefreshing(): boolean;
   shouldAnimateRefreshStatus(): boolean;
   refreshToday(manual?: boolean, animateStatus?: boolean): Promise<void>;
@@ -53,8 +55,10 @@ export class SimpleMeetingSidebarView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    this.decorateWorkspace();
-    this.renderPill();
+    if (!Platform.isMobile) {
+      this.decorateWorkspace();
+      this.renderPill();
+    }
     this.render();
   }
 
@@ -179,11 +183,15 @@ export class SimpleMeetingSidebarView extends ItemView {
     const container = this.body;
     container.empty();
     const error = this.controller.getLastError();
-    if (error) container.createDiv({ cls: "wcm-error", text: error });
+    if (error && !Platform.isMobile) container.createDiv({ cls: "wcm-error", text: error });
+    if (Platform.isMobile) this.renderMobileStatus(container);
 
     const events = this.controller.getTodayEvents();
     if (events.length === 0) {
-      if (!this.controller.getCachedDate()) {
+      if (Platform.isMobile) {
+        container.createDiv({ cls: "wcm-empty", text: this.controller.getCachedDate()
+          ? "No meetings to show today." : "No calendar data for today yet." });
+      } else if (!this.controller.getCachedDate()) {
         container.createDiv({ cls: "wcm-empty", text: "Today's calendar has not been refreshed yet. Click the pill above or use “Refresh today's meetings” in the command palette." });
       }
       return;
@@ -194,6 +202,16 @@ export class SimpleMeetingSidebarView extends ItemView {
       renderEventRow(list, event, this.controller, "sidebar");
     }
   }
+
+  private renderMobileStatus(container: HTMLElement): void {
+    container.createDiv({ cls: "wcm-calendar-status", text: this.controller.getCalendarStatus() });
+    const reload = container.createEl("button", {
+      cls: "wcm-reload", text: "Reload synced meetings", attr: { type: "button" },
+    });
+    reload.disabled = this.controller.isRefreshing();
+    reload.addEventListener("click", () => void this.controller.refreshToday(true).catch(() => undefined));
+  }
+
 
 
 }
@@ -237,7 +255,8 @@ export class CalendarEventsModal extends Modal {
     const container = this.body;
     container.empty();
     const error = this.controller.getLastError();
-    if (error) container.createDiv({ cls: "wcm-error", text: error });
+    if (error && !Platform.isMobile) container.createDiv({ cls: "wcm-error", text: error });
+    if (Platform.isMobile) container.createDiv({ cls: "wcm-calendar-status", text: this.controller.getCalendarStatus() });
 
     if (!this.controller.getCachedDate()) {
       if (!this.controller.isRefreshing()) {
@@ -248,7 +267,10 @@ export class CalendarEventsModal extends Modal {
 
     const groups = this.controller.getTodayAndYesterdayEvents();
     this.renderSection(container, "Today", groups.today, "No calendar events today.");
-    this.renderSection(container, "Yesterday", groups.yesterday, "No calendar events yesterday.");
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    this.renderSection(container, "Yesterday", groups.yesterday,
+      Platform.isMobile && !this.controller.hasCoverage(yesterday) ? "No calendar data for yesterday." : "No calendar events yesterday.");
   }
 
   private renderSection(

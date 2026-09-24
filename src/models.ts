@@ -4,6 +4,7 @@ export type RefreshSchedule = "manual" | "60" | "360" | "720" | "daily" | "weekl
 
 export interface CalendarEvent {
   id: string;
+  externalId?: string;
   key: string;
   title: string;
   start: string;

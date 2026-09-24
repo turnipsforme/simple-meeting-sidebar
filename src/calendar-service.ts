@@ -1,3 +1,4 @@
+// This module is loaded only by the guarded Mac-only dynamic import in main.ts.
 import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
@@ -19,12 +20,7 @@ export class CalendarService {
 
   constructor(private readonly plugin: Plugin) {}
 
-  async fetchTodayAndYesterday(): Promise<CalendarEvent[]> {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - 1);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 2);
+  async fetchRange(start: Date, end: Date): Promise<CalendarEvent[]> {
 
     const stdout = await this.runHelper([start.toISOString(), end.toISOString()]);
 
@@ -40,7 +36,8 @@ export class CalendarService {
     const events: CalendarEvent[] = [];
     for (const rawValue of decoded) {
       const event = readCalendarEvent(rawValue, false);
-      if (event) events.push(event);
+      if (!event) throw new Error("The Apple Calendar helper returned an invalid event.");
+      events.push(event);
     }
 
     events.sort((left, right) => {

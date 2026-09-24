@@ -1,9 +1,9 @@
 {
   "id": "simple-meeting-sidebar",
   "name": "Simple Meeting Sidebar",
-  "version": "0.6.0",
-  "minAppVersion": "1.5.0",
+  "version": "0.7.0",
+  "minAppVersion": "1.8.7",
   "description": "Shows today's Apple Calendar events in a simple sidebar and turns them into tasks or meeting notes.",
   "author": "Wren",
-  "isDesktopOnly": true
+  "isDesktopOnly": false
 }

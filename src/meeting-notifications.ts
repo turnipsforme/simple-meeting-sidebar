@@ -48,7 +48,6 @@ export class MeetingNotifications extends Component {
   private todayPath = "";
   private signature = "";
   private widget: MeetingWidget | null = null;
-  private midnightTimer: number | undefined;
   private readonly rows = new WeakMap<HTMLElement, Map<string, NotificationRow>>();
   private readonly motion = new NotificationMotion();
 
@@ -73,29 +72,19 @@ export class MeetingNotifications extends Component {
     this.registerEvent(workspace.on("file-open", () => this.refresh()));
     this.register(this.plugin.subscribe(() => this.refresh()));
     this.refresh();
-    this.scheduleMidnight();
+
   }
 
   onunload(): void {
     this.motion.destroy();
-    window.clearTimeout(this.midnightTimer);
     for (const footer of this.previews.values()) this.removePreview(footer);
     this.previews.clear();
   }
 
   prepareDismissal(key: string): void { this.motion.prepareDismissal(key); }
 
-  private scheduleMidnight(): void {
-    const midnight = new Date();
-    midnight.setHours(24, 0, 0, 0);
-    this.midnightTimer = window.setTimeout(() => {
-      this.plugin.renderViews();
-      this.scheduleMidnight();
-    }, midnight.getTime() - Date.now() + 50);
-  }
-
   private refresh(): void {
-    const events = this.plugin.getTodayEvents().filter((event) => !event.notificationHidden);
+    const events = this.plugin.getNotificationEvents().filter((event) => !event.notificationHidden);
     const todayPath = this.dailyNotes.getTodayPath();
     const signature = JSON.stringify([todayPath, this.plugin.settings.monochromeNotifications,
       events, events.map((event) => this.plugin.isEventBusy(event.key))]);
@@ -197,7 +186,7 @@ export class MeetingNotifications extends Component {
     if (!footer || !this.widget) return;
     if (footer.widget !== this.widget) {
       // The same renderer is used in reading mode and the editor widget.
-      const events = this.plugin.getTodayEvents().filter((event) => !event.notificationHidden);
+      const events = this.plugin.getNotificationEvents().filter((event) => !event.notificationHidden);
       this.render(footer.root, events);
       footer.widget = this.widget;
     }

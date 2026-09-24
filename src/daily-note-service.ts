@@ -72,12 +72,15 @@ export class DailyNoteService {
     }
   }
 
-  async addTask(file: TFile, eventTitle: string): Promise<boolean> {
+  async addTask(file: TFile, eventTitle: string, marker?: string): Promise<boolean> {
     let changed = false;
     await this.app.vault.process(file, (content) => {
+      if (marker && content.includes(marker)) return content;
       const update = insertTaskIntoDailyNote(content, eventTitle);
       changed = update.changed;
-      return update.content;
+      if (!marker || !update.changed) return update.content;
+      const line = `- [ ] ${eventTitle}`;
+      return update.content.replace(line, `${line} ${marker}`);
     });
     return changed;
   }

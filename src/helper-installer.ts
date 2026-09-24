@@ -1,3 +1,5 @@
+// This module is loaded only by the guarded Mac-only dynamic import in main.ts.
+import { Buffer } from "node:buffer";
 import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";

@@ -1,10 +1,12 @@
 import type { Extension } from "@codemirror/state";
-import { Notice, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
-import { CalendarService } from "./calendar-service";
+import { Notice, Platform, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
+import type { CalendarService } from "./calendar-service";
+import { calendarWindow, coversLocalDate, NOTIFICATION_MAX_AGE_MS, parseSnapshot, SNAPSHOT_PATH, snapshotAllowsNotifications, type CalendarSnapshot } from "./calendar-snapshot";
+import { SnapshotStore } from "./snapshot-store";
 import { DailyNoteService } from "./daily-note-service";
 import {
-  eventsStartingOnLocalDate,
   filterCalendarEvents,
+  eventDateReader,
   mergeRefreshedEventState,
 } from "./event-filter";
 import { MeetingNotifications } from "./meeting-notifications";
@@ -37,12 +39,22 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
   private readonly notificationExtensions: Extension[] = [];
   private readonly busyEvents = new Set<string>();
   private readonly listeners = new Set<() => void>();
-  private calendarService!: CalendarService;
+  private calendarService: CalendarService | null = null;
+  private snapshotStore!: SnapshotStore;
+  private snapshot: CalendarSnapshot | null = null;
+  private snapshotVerified = false;
+  private snapshotGeneration = 0;
+  private clockTimer: number | null = null;
+  private stopped = false;
+  private settingsSave: Promise<void> = Promise.resolve();
+  private device = { id: "" };
   private meetingService!: MeetingService;
   private scheduleTimer: number | null = null;
   private refreshPromise: Promise<void> | null = null;
   private animateRefreshStatus = false;
   private lastRefreshError = "";
+  private indexedEvents: CalendarEvent[] | null = null;
+  private readonly eventsByDate = new Map<string, CalendarEvent[]>();
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -54,7 +66,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
       () => this.settings.considerAliases,
       () => this.settings.ignoredPeople,
     );
-    this.calendarService = new CalendarService(this);
+    this.snapshotStore = new SnapshotStore(this.app);
     this.meetingService = new MeetingService(
       this.app,
       dailyNotes,
@@ -72,7 +84,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
 
     this.addCommand({
       id: "refresh-todays-meetings",
-      name: "Refresh today's meetings",
+      name: this.isSnapshotReader() ? "Reload synced meetings" : "Refresh today's meetings",
       callback: () => void this.refreshToday(true).catch(() => undefined),
     });
     this.addCommand({
@@ -115,17 +127,37 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
     this.registerEvent(this.app.vault.on("delete", (file) => {
       if (this.peopleIndex.isPeoplePath(file.path)) this.peopleIndex.invalidate();
     }));
-    this.register(() => this.clearSchedule());
+    this.register(() => {
+      this.stopped = true;
+      this.snapshotGeneration++;
+      this.clearSchedule();
+      if (this.clockTimer !== null) window.clearTimeout(this.clockTimer);
+    });
+    const snapshotChanged = (path: string) => {
+      if (path !== SNAPSHOT_PATH || !this.isSnapshotReader()) return;
+      this.snapshotGeneration++;
+      this.snapshotVerified = false;
+      this.renderViews();
+      void this.refreshToday().catch(() => undefined);
+    };
+    this.registerEvent(this.app.vault.on("create", (file) => snapshotChanged(file.path)));
+    this.registerEvent(this.app.vault.on("modify", (file) => snapshotChanged(file.path)));
+    this.registerEvent(this.app.vault.on("delete", (file) => snapshotChanged(file.path)));
+    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
+      if (oldPath === SNAPSHOT_PATH) snapshotChanged(oldPath);
+      else snapshotChanged(file.path);
+    }));
+    this.registerDomEvent(document, "visibilitychange", () => {
+      if (document.visibilityState === "visible") this.onResume();
+    });
+    this.registerDomEvent(window, "focus", () => this.onResume());
 
     this.app.workspace.onLayoutReady(() => {
       this.configureNotifications();
-      if (!this.settings.sidebarInitialized) void this.initializeSidebar();
-      if (process.platform !== "darwin") {
-        this.lastRefreshError = "Simple Meeting Sidebar is available on macOS only.";
-        this.renderViews();
-        return;
-      }
-      this.configureSchedule();
+      if (!Platform.isMobile && !this.settings.sidebarInitialized) void this.initializeSidebar();
+      this.scheduleClock();
+      if (this.isSnapshotReader()) void this.refreshToday().catch(() => undefined);
+      else this.configureSchedule();
     });
   }
 
@@ -151,42 +183,80 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
   }
 
   async getAvailableCalendars(): Promise<string[]> {
-    const calendars = await this.calendarService.listCalendars();
+    const calendars = this.isSnapshotReader() ? [] : await (await this.getCalendarService()).listCalendars();
     return [...new Set([...calendars, ...this.settings.cachedEvents.map((event) => event.calendar)])]
       .filter(Boolean)
       .sort((left, right) => left.localeCompare(right));
   }
 
   getCachedDate(): string {
-    return this.settings.cachedDate === localDateKey(new Date()) ? this.settings.cachedDate : "";
+    return this.hasCoverage(new Date()) ? localDateKey(new Date()) : "";
   }
 
-  getLastRefreshTime(): number {
-    return this.settings.cachedDate === localDateKey(new Date())
-      ? this.settings.lastSuccessfulRefreshAt
-      : 0;
+  getLastRefreshTime(): number { return this.settings.lastSuccessfulRefreshAt; }
+
+  getLastError(): string { return this.lastRefreshError; }
+
+  canUseAppleCalendar(): boolean { return Platform.isMacOS && !Platform.isMobile; }
+  isSnapshotReader(): boolean { return !this.canUseAppleCalendar(); }
+  isPublishing(): boolean { return this.canUseAppleCalendar(); }
+
+  getNotificationEvents(): CalendarEvent[] {
+    if (this.isSnapshotReader() && (!snapshotAllowsNotifications(this.snapshot, this.snapshotVerified)
+      || !this.calendarSelectionMatches())) return [];
+    return this.getTodayEvents();
   }
 
-  getLastError(): string {
-    return this.lastRefreshError;
+  getCalendarStatus(): string {
+    if (!this.snapshot && !this.settings.lastSuccessfulRefreshAt) {
+      return this.isSnapshotReader() ? "Waiting for a calendar snapshot from your Mac." : "Calendar has not been refreshed yet.";
+    }
+    const updated = new Date(this.getLastRefreshTime()).toLocaleString(undefined, {
+      month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    });
+    const suffix = this.isSnapshotReader() && (!this.snapshotVerified || !this.calendarSelectionMatches())
+      ? " Waiting for calendar sync." : "";
+    return `Calendar updated ${updated}.${suffix}`;
+  }
+
+  hasCoverage(date: Date): boolean {
+    if (this.snapshot) return coversLocalDate(this.snapshot, date);
+    // Legacy caches cover only the publisher's refresh day and the day before it.
+    const key = localDateKey(date);
+    const previous = new Date(`${this.settings.cachedDate}T12:00:00`);
+    previous.setDate(previous.getDate() - 1);
+    return !this.isSnapshotReader() && !!this.settings.cachedDate
+      && (key === this.settings.cachedDate || key === localDateKey(previous));
+  }
+
+  private calendarSelectionMatches(): boolean {
+    const selected = this.settings.selectedCalendars;
+    const published = this.snapshot?.selectedCalendars;
+    return selected === null ? published === null : Array.isArray(published)
+      && selected.length === published.length && selected.every((name) => published.includes(name));
+  }
+
+  private async getCalendarService(): Promise<CalendarService> {
+    if (!this.canUseAppleCalendar()) throw new Error("Apple Calendar needs a Mac.");
+    if (!this.calendarService) {
+      const { CalendarService } = await import("./calendar-service");
+      this.calendarService = new CalendarService(this);
+    }
+    return this.calendarService;
   }
 
   async refreshToday(manual = false, animateStatus = false): Promise<void> {
-    if (process.platform !== "darwin") {
-      const error = new Error("Apple Calendar access is supported on macOS only.");
-      if (manual) new Notice(`Simple Meeting Sidebar: ${error.message}`);
-      throw error;
-    }
     if (this.refreshPromise) return this.refreshPromise;
 
     this.animateRefreshStatus = animateStatus;
-    const operation = this.performRefresh(manual);
+    const operation = this.isSnapshotReader() ? this.reloadSnapshot(manual) : this.performRefresh(manual);
     this.refreshPromise = operation;
     this.renderViews();
     try {
       await operation;
     } finally {
       if (this.refreshPromise === operation) this.refreshPromise = null;
+      this.scheduleClock();
       this.renderViews();
     }
   }
@@ -208,6 +278,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
     }
 
     const result = await this.meetingService.createMeeting(event);
+    if (!result) return;
     await this.updateEventState(event.key, {
       meetingNotePath: result.file.path,
       sidebarHidden: true,
@@ -217,7 +288,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
 
   configureSchedule(): void {
     this.clearSchedule();
-    if (this.settings.refreshSchedule === "manual" || process.platform !== "darwin") return;
+    if (this.settings.refreshSchedule === "manual" || this.isSnapshotReader()) return;
     this.scheduleTimer = window.setInterval(
       () => this.checkAutomaticRefresh(),
       AUTOMATIC_REFRESH_POLL_MS,
@@ -226,20 +297,126 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
   }
 
   async saveSettings(): Promise<void> {
-    await this.saveData(this.settings);
+    const localKeys = new Set(["cachedEvents", "cachedDate", "lastSuccessfulRefreshAt", "sidebarInitialized"]);
+    const shared = Object.fromEntries(Object.entries(this.settings).filter(([key]) => !localKeys.has(key)));
+    const save = this.settingsSave.catch(() => undefined).then(() => this.saveData(shared));
+    this.settingsSave = save;
+    await save;
+  }
+
+  async onExternalSettingsChange(): Promise<void> {
+    const current = this.settings;
+    this.settings = { ...loadPluginSettings(await this.loadData()),
+      cachedEvents: current.cachedEvents, cachedDate: current.cachedDate,
+      lastSuccessfulRefreshAt: current.lastSuccessfulRefreshAt, sidebarInitialized: current.sidebarInitialized };
+    this.peopleIndex.invalidate();
+    this.configureNotifications();
+    this.configureSchedule();
+    this.renderViews();
+    if (this.isSnapshotReader() || JSON.stringify(current.selectedCalendars) !== JSON.stringify(this.settings.selectedCalendars)) {
+      await this.refreshToday().catch(() => undefined);
+    }
+  }
+
+  private saveLocalState(): void {
+    this.app.saveLocalStorage(`${this.manifest.id}:device`, {
+      ...this.device, snapshot: this.snapshot ? { ...this.snapshot, events: undefined } : null,
+      cachedEvents: this.settings.cachedEvents, cachedDate: this.settings.cachedDate,
+      lastSuccessfulRefreshAt: this.settings.lastSuccessfulRefreshAt,
+      sidebarInitialized: this.settings.sidebarInitialized,
+    });
   }
 
   private async loadSettings(): Promise<void> {
     const storedData: unknown = await this.loadData();
     this.settings = loadPluginSettings(storedData);
-    if (storedData == null) this.settings.sidebarInitialized = false;
+    const saved: unknown = this.app.loadLocalStorage(`${this.manifest.id}:device`);
+    const local = saved && typeof saved === "object" ? saved as Record<string, unknown> : null;
+    this.device = {
+      id: typeof local?.id === "string" ? local.id : crypto.randomUUID(),
+    };
+    if (local) {
+      const state = loadPluginSettings(local);
+      this.settings.cachedEvents = state.cachedEvents;
+      this.settings.cachedDate = state.cachedDate;
+      this.settings.lastSuccessfulRefreshAt = state.lastSuccessfulRefreshAt;
+      this.settings.sidebarInitialized = state.sidebarInitialized;
+      try {
+        const header = local.snapshot as CalendarSnapshot;
+        this.snapshot = parseSnapshot(JSON.stringify({ ...header,
+          events: filterCalendarEvents(state.cachedEvents, header.selectedCalendars, false) }));
+      } catch { this.snapshot = null; }
+    } else if (this.isSnapshotReader()) {
+      this.settings.cachedEvents = [];
+      this.settings.cachedDate = "";
+      this.settings.lastSuccessfulRefreshAt = 0;
+    }
+    if (storedData == null && !local) this.settings.sidebarInitialized = false;
+    this.saveLocalState();
+  }
+
+  private async reloadSnapshot(manual: boolean): Promise<void> {
+    let generation: number;
+    do {
+      generation = this.snapshotGeneration;
+      try {
+        const incoming = await this.snapshotStore.read();
+        if (this.stopped || !this.isSnapshotReader()) return;
+        if (generation !== this.snapshotGeneration) continue;
+        if (this.snapshot && incoming.generatedAt < this.snapshot.generatedAt) {
+          this.snapshotVerified = false;
+          return;
+        }
+        if (this.snapshot && incoming.generatedAt === this.snapshot.generatedAt) {
+          this.snapshotVerified = JSON.stringify(incoming) === JSON.stringify(this.snapshot);
+          if (!this.snapshotVerified || !manual) return;
+        }
+        this.settings.cachedEvents = mergeRefreshedEventState(incoming.events, this.settings.cachedEvents, !manual);
+        this.snapshot = incoming;
+        this.settings.cachedDate = localDateKey(new Date(incoming.generatedAt));
+        this.settings.lastSuccessfulRefreshAt = incoming.generatedAt;
+        this.snapshotVerified = true;
+        this.lastRefreshError = "";
+        this.saveLocalState();
+      } catch {
+        this.snapshotVerified = false;
+      }
+    } while (!this.stopped && generation !== this.snapshotGeneration);
+  }
+
+  private onResume(): void {
+    if (this.stopped) return;
+    this.indexedEvents = null; // Local dates may have changed after travelling.
+    this.scheduleClock();
+    if (this.isSnapshotReader()) {
+      this.snapshotGeneration++;
+      this.snapshotVerified = false;
+      this.renderViews();
+      void this.refreshToday().catch(() => undefined);
+    } else {
+      this.renderViews();
+      this.checkAutomaticRefresh();
+    }
+  }
+
+  private scheduleClock(): void {
+    if (this.clockTimer !== null) window.clearTimeout(this.clockTimer);
+    if (this.stopped) return;
+    const midnight = new Date();
+    midnight.setHours(24, 0, 0, 0);
+    const expires = (this.snapshot?.generatedAt ?? 0) + NOTIFICATION_MAX_AGE_MS;
+    const next = this.isSnapshotReader() && expires > Date.now() ? Math.min(expires, midnight.getTime()) : midnight.getTime();
+    this.clockTimer = window.setTimeout(() => {
+      this.renderViews();
+      this.scheduleClock();
+    }, Math.max(50, next - Date.now() + 25));
   }
 
   private async initializeSidebar(): Promise<void> {
     try {
       await this.activateView();
       this.settings.sidebarInitialized = true;
-      await this.saveSettings();
+      this.saveLocalState();
     } catch (error: unknown) {
       console.error("Simple Meeting Sidebar: could not initialize the sidebar", error);
     }
@@ -248,15 +425,32 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
   private async performRefresh(manual: boolean): Promise<void> {
     this.lastRefreshError = "";
     try {
-      const freshEvents = await this.calendarService.fetchTodayAndYesterday();
-      this.settings.cachedEvents = mergeRefreshedEventState(
-        freshEvents,
-        this.settings.cachedEvents,
-        !manual,
-      );
-      this.settings.cachedDate = localDateKey(new Date());
-      this.settings.lastSuccessfulRefreshAt = Date.now();
-      await this.saveSettings();
+      const generatedAt = Date.now();
+      const selectedCalendars = this.settings.selectedCalendars?.slice() ?? null;
+      const { start, end } = calendarWindow(new Date(generatedAt));
+      const freshEvents = await (await this.getCalendarService()).fetchRange(start, end);
+      if (this.stopped || this.isSnapshotReader()) return;
+      if (JSON.stringify(selectedCalendars) !== JSON.stringify(this.settings.selectedCalendars)) {
+        return await this.performRefresh(manual);
+      }
+      const snapshot = parseSnapshot(JSON.stringify({
+        version: 1, publisher: this.device.id, generatedAt,
+        coverageStart: start.toISOString(), coverageEnd: end.toISOString(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        selectedCalendars, events: filterCalendarEvents(freshEvents, selectedCalendars, false),
+      }));
+      this.settings.cachedEvents = mergeRefreshedEventState(freshEvents, this.settings.cachedEvents, !manual);
+      this.snapshot = snapshot;
+      this.settings.cachedDate = localDateKey(new Date(generatedAt));
+      this.settings.lastSuccessfulRefreshAt = generatedAt;
+      this.saveLocalState();
+      if (this.isPublishing()) {
+        try { await this.snapshotStore.publish(snapshot); }
+        catch (error) {
+          console.warn("Simple Meeting Sidebar: snapshot publication deferred", error);
+          this.lastRefreshError = "Meetings refreshed on this Mac. Calendar sync is waiting for the snapshot file to be writable.";
+        }
+      }
       if (manual) {
         const count = this.getTodayEvents().length;
         new Notice(`Simple Meeting Sidebar: found ${count} event${count === 1 ? "" : "s"} today.`);
@@ -265,7 +459,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
       const message = error instanceof Error ? error.message : "Apple Calendar could not be refreshed.";
       this.lastRefreshError = message;
       console.error("Simple Meeting Sidebar: refresh failed", error);
-      new Notice(`Simple Meeting Sidebar: ${message}`, 8000);
+      if (manual) new Notice(`Simple Meeting Sidebar: ${message}`, 8000);
       throw error;
     }
   }
@@ -278,7 +472,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
     const event = this.settings.cachedEvents.find((candidate) => candidate.key === eventKey);
     if (!event) return;
     Object.assign(event, patch);
-    await this.saveSettings();
+    this.saveLocalState();
     if (animateLayout) this.notifications?.prepareDismissal(eventKey);
     this.renderViews();
   }
@@ -305,15 +499,20 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
   }
 
   private getEventsForDate(dateKey: string): CalendarEvent[] {
-    if (this.settings.cachedDate !== localDateKey(new Date())) return [];
-    return eventsStartingOnLocalDate(
-      filterCalendarEvents(
-        this.settings.cachedEvents,
-        this.settings.selectedCalendars,
-        this.settings.onlyMeetingLinkEvents,
-      ),
-      dateKey,
-    );
+    if (!this.hasCoverage(new Date(`${dateKey}T12:00:00`))) return [];
+    if (this.indexedEvents !== this.settings.cachedEvents) {
+      this.eventsByDate.clear();
+      const dateKeyForEvent = eventDateReader(this.snapshot?.timeZone);
+      for (const event of this.settings.cachedEvents) {
+        const day = dateKeyForEvent(event);
+        const group = this.eventsByDate.get(day);
+        if (group) group.push(event);
+        else this.eventsByDate.set(day, [event]);
+      }
+      this.indexedEvents = this.settings.cachedEvents;
+    }
+    return filterCalendarEvents(this.eventsByDate.get(dateKey) ?? [],
+      this.settings.selectedCalendars, this.settings.onlyMeetingLinkEvents);
   }
 
   private showCalendarEvents(): void {

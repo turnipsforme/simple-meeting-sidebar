@@ -26,6 +26,7 @@ for (const proto of [win.HTMLElement.prototype, win.Document.prototype]) {
   proto.createDiv = function(options) { return create.call(this, 'div', options); };
   proto.createSpan = function(options) { return create.call(this, 'span', options); };
   proto.createEl = function(tag, options) { return create.call(this, tag, options); };
+  proto.empty = function() { this.replaceChildren(); };
   proto.addClass = function(...names) { this.classList.add(...names); };
   proto.setAttr = function(key, value) { this.setAttribute(key, value); };
 }
@@ -41,7 +42,7 @@ test('notification containers stay detached until mounted in the editor or readi
   // not silently return a detached node as the original fixture incorrectly did.
   assert.throws(() => win.document.createDiv(), { name: 'HierarchyRequestError' });
   const result = await repo('esbuild').build({
-    stdin: { contents: 'export { MeetingNotifications } from "./src/meeting-notifications"; export { renderEventRow } from "./src/view"; export { MarkdownView, editorInfoField } from "obsidian";', resolveDir: root },
+    stdin: { contents: 'export { MeetingNotifications } from "./src/meeting-notifications"; export { renderEventRow, SimpleMeetingSidebarView } from "./src/view"; export { MarkdownView, editorInfoField, Platform } from "obsidian";', resolveDir: root },
     bundle: true, platform: 'node', format: 'cjs', write: false,
     external: ['@codemirror/state', '@codemirror/view'],
     plugins: [{ name: 'obsidian-fixture', setup(build) {
@@ -55,7 +56,7 @@ test('notification containers stay detached until mounted in the editor or readi
           unload() { this.onunload(); this.callbacks.forEach(fn => fn()); }
         }
         export class MarkdownView { getMode() { return 'preview'; } }
-        export class ItemView {}
+        export const Platform = {isMobile: true}; export class ItemView { constructor(leaf) { this.containerEl=leaf.containerEl; this.contentEl=leaf.contentEl; } registerDomEvent() {} }
         export class Modal {}
         export class TFile {}
         export function setIcon(el, icon) { el.dataset.icon = icon; }
@@ -65,7 +66,7 @@ test('notification containers stay detached until mounted in the editor or readi
   });
   const compiled = { exports: {} };
   new Function('require', 'module', 'exports', result.outputFiles[0].text)(repo, compiled, compiled.exports);
-  const { MeetingNotifications, renderEventRow, MarkdownView, editorInfoField } = compiled.exports;
+  const { MeetingNotifications, renderEventRow, SimpleMeetingSidebarView, Platform, MarkdownView, editorInfoField } = compiled.exports;
   const event = { key: '1', title: 'Meeting with John', start: new Date(2026,8,20,10,30).toISOString(), allDay: false };
   let events = [event];
   const busy = new Set();
@@ -79,7 +80,11 @@ test('notification containers stay detached until mounted in the editor or readi
   const plugin = {
     settings: { monochromeNotifications: false },
     app: {workspace: {on() {}, getLeavesOfType() { return [{view}]; }}, vault: { getAbstractFileByPath() { return null; } }},
-    getTodayEvents() { return events; }, isEventBusy(key) { return busy.has(key); },
+    getNotificationEvents() { return events; }, getTodayEvents() { return events; },
+    getCalendarStatus() { return 'Calendar updated Sep 23, 10:00.'; }, getLastError() { return 'Internal error must not appear on mobile'; },
+    isRefreshing() { return false; }, shouldAnimateRefreshStatus() { return false; }, getCachedDate() { return '2026-09-23'; },
+    getPillOffset() { return 0; }, async refreshToday() {},
+    isEventBusy(key) { return busy.has(key); },
     subscribe(fn) { subscriber = fn; return () => { subscriber = undefined; }; },
     renderViews() { subscriber?.(); },
     async runEventAction(event, action) {
@@ -199,6 +204,30 @@ test('notification containers stay detached until mounted in the editor or readi
   assert.equal(preview.classList.contains('wcm-has-notifications'), false);
   delete event.notificationHidden; subscriber();
   assert.ok(preview.querySelector('.wcm-notifications'));
+  // Freshness changes remove banners in both modes without changing the editor document.
+  const savedEvents = events;
+  events = []; subscriber();
+  assert.equal(preview.querySelector('.wcm-notifications'), null);
+  assert.equal(editor.dom.querySelector('.wcm-notifications'), null);
+  assert.equal(editor.state.doc.toString(), '# Today\nMore note content');
+  events = savedEvents; subscriber();
+  const sidebarContainer = win.document.createElement('div');
+  const sidebarContent = sidebarContainer.createDiv();
+  const mobileSidebar = new SimpleMeetingSidebarView({ containerEl: sidebarContainer, contentEl: sidebarContent }, plugin);
+  await mobileSidebar.onOpen();
+  assert.ok(sidebarContent.querySelector('.wcm-calendar-status'));
+  assert.equal(sidebarContent.querySelector('.wcm-reload').textContent, 'Reload synced meetings');
+  assert.equal(sidebarContainer.querySelector('.wcm-pill'), null);
+  assert.equal(sidebarContainer.querySelector('.wcm-error'), null);
+  await mobileSidebar.onClose();
+  Platform.isMobile = false;
+  const desktopContainer = win.document.createElement('div');
+  const desktopSidebar = new SimpleMeetingSidebarView({ containerEl: desktopContainer, contentEl: desktopContainer.createDiv() }, plugin);
+  await desktopSidebar.onOpen();
+  assert.ok(desktopContainer.querySelector('.wcm-pill'));
+  assert.equal(desktopContainer.querySelector('.wcm-calendar-status'), null);
+  assert.equal(desktopContainer.querySelector('.wcm-reload'), null);
+  await desktopSidebar.onClose();
   view.file.path = 'Other.md'; subscriber();
   assert.equal(preview.querySelector('.wcm-notifications'), null);
 });

@@ -1,4 +1,4 @@
-import { PluginSettingTab, Setting, type App, type SettingDefinitionItem } from "obsidian";
+import { Platform, PluginSettingTab, Setting, type App, type SettingDefinitionItem } from "obsidian";
 import type SimpleMeetingSidebarPlugin from "./main";
 import type { RefreshSchedule } from "./models";
 import { normalizeVaultFolder, parseDailyTime } from "./utils";
@@ -28,9 +28,15 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
 
   private renderSettings(containerEl: HTMLElement): void {
     containerEl.empty();
+    const reader = this.calendarPlugin.isSnapshotReader();
+    if (Platform.isMobile) containerEl.createEl("p", {
+      cls: "setting-item-description",
+      // Keep the literal vault path and the Obsidian Sync setting name accurate.
+      text: "Meetings load from Meetings/_calendar/events.json. Refresh on your Mac and enable Sync all other types on both devices. Banners appear only while the snapshot is less than one hour old; saved meetings remain available in the sidebar.",
+    });
     new Setting(containerEl).setName("Events").setHeading();
     containerEl.createEl("p", {
-      text: "Choose which Apple calendars contribute events. All calendars are used until you turn one off.",
+      text: reader ? "Calendar selection syncs with your Macs. Only calendars in the received snapshot are listed here." : "Choose which Apple calendars contribute events. All calendars are used until you turn one off.",
       cls: "setting-item-description",
     });
     const calendarChoices = containerEl.createDiv();
@@ -138,7 +144,7 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
         }));
     ignoredPeopleSetting.settingEl.addClass("wcm-people-setting");
 
-    new Setting(containerEl)
+    if (!reader) new Setting(containerEl)
       .setName("Calendar refresh schedule")
       .setDesc("Checks regularly while Obsidian is open and catches up after a missed refresh. Manual never runs by itself.")
       .addDropdown((dropdown) => dropdown
@@ -155,7 +161,7 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
           this.calendarPlugin.configureSchedule();
         }));
 
-    new Setting(containerEl)
+    if (!reader) new Setting(containerEl)
       .setName("Daily refresh time")
       .setDesc("Local Mac time used by the once-a-day schedule. Defaults to 08:00.")
       .addText((text) => text
@@ -169,10 +175,10 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Refresh now")
-      .setDesc("Refreshes yesterday and today, and restores handled events to the sidebar.")
+      .setName(reader ? "Reload synced meetings" : "Refresh now")
+      .setDesc(reader ? "Reads the latest snapshot received on this device. It does not request new calendar data from your Mac." : "Refreshes yesterday, today and the next seven days, and restores handled events to the sidebar.")
       .addButton((button) => button
-        .setButtonText("Refresh")
+        .setButtonText(reader ? "Reload" : "Refresh")
         .onClick(async (event) => {
           button.setDisabled(true);
           try {
@@ -211,7 +217,7 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
       if (calendars.length === 0) {
         container.createDiv({
           cls: "setting-item-description",
-          text: "No Apple calendars were found.",
+          text: this.calendarPlugin.isSnapshotReader() ? "No calendars have arrived yet." : "No Apple calendars were found.",
         });
         return;
       }
@@ -233,6 +239,7 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
                 : [...selected].sort((left, right) => left.localeCompare(right));
               await this.calendarPlugin.saveSettings();
               this.calendarPlugin.renderViews();
+              if (this.calendarPlugin.isPublishing()) void this.calendarPlugin.refreshToday().catch(() => undefined);
             }));
         setting.settingEl.addClass("wcm-calendar-setting");
       }

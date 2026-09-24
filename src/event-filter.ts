@@ -1,4 +1,5 @@
 import type { CalendarEvent } from "./models";
+import { eventIdentity } from "./event-identity";
 import { localDateKey } from "./utils";
 
 export function filterCalendarEvents(
@@ -25,8 +26,9 @@ export function mergeRefreshedEventState(
   preserveSidebarHidden: boolean,
 ): CalendarEvent[] {
   const previousState = new Map(previousEvents.map((event) => [event.key, event] as const));
+  const previousIdentity = new Map(previousEvents.map((event) => [eventIdentity(event), event] as const));
   return freshEvents.map((event) => {
-    const previous = previousState.get(event.key);
+    const previous = previousState.get(event.key) ?? previousIdentity.get(eventIdentity(event));
     return {
       ...event,
       ...(previous?.taskAdded ? { taskAdded: true } : {}),
@@ -35,4 +37,17 @@ export function mergeRefreshedEventState(
       ...(preserveSidebarHidden && previous?.notificationHidden ? { notificationHidden: true } : {}),
     };
   });
+}
+
+/** Timed meetings follow the device; all-day meetings retain the source calendar date. */
+export function eventDateReader(sourceTimeZone?: string): (event: CalendarEvent) => string {
+  const formatter = sourceTimeZone ? new Intl.DateTimeFormat("en", {
+    timeZone: sourceTimeZone, year: "numeric", month: "2-digit", day: "2-digit",
+  }) : null;
+  return (event) => {
+    const date = new Date(event.start);
+    if (!event.allDay || !formatter) return localDateKey(date);
+    const parts = formatter.formatToParts(date);
+    return ["year", "month", "day"].map((type) => parts.find((part) => part.type === type)?.value).join("-");
+  };
 }

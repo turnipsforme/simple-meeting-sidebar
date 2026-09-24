@@ -72,8 +72,8 @@ export function readCalendarEvent(value: unknown, includeSavedState = true): Cal
   const base = {
     id: typeof value.id === "string" ? value.id.slice(0, 500) : "",
     title,
-    start: value.start,
-    end: value.end,
+    start: new Date(value.start).toISOString(),
+    end: new Date(value.end).toISOString(),
     allDay: value.allDay === true,
     calendar: typeof value.calendar === "string" ? compactSingleLine(value.calendar, 200) : "",
     hasGoogleMeet: value.hasGoogleMeet === true,
@@ -94,6 +94,7 @@ export function readCalendarEvent(value: unknown, includeSavedState = true): Cal
 
   return {
     ...base,
+    ...(typeof value.externalId === "string" && value.externalId ? { externalId: value.externalId.slice(0, 500) } : {}),
     key: makeEventKey(base),
     ...(value.hasMeetingLink === true ? { hasMeetingLink: true } : {}),
     ...(location ? { location } : {}),

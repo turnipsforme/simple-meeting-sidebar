@@ -11,7 +11,7 @@ test.before(async () => {
       builder.onResolve({ filter: /^(obsidian|calendar-helper-binary)$/ }, args => ({ path: args.path, namespace: 'fixture' }));
       builder.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ contents: args.path === 'calendar-helper-binary'
         ? 'export default "";'
-        : `export class Plugin {} export class Notice {} export class TFile {} export class TFolder {} export class Component {}
+        : `export const Platform = {isMacOS: true, isMobile: false}; export class FuzzySuggestModal {} export class Plugin {} export class Notice {} export class TFile {} export class TFolder {} export class Component {}
            export class MarkdownView {} export class ItemView {} export class Modal {} export class PluginSettingTab {} export class Setting {}
            export const editorInfoField = null; export const normalizePath = s => s; export function setIcon() {} export function getAllTags() {} export function moment() {}` }));
     } }],
@@ -23,6 +23,7 @@ test.before(async () => {
 
 test('refresh input policy survives completion and concurrent requests cannot replace it', async () => {
   const plugin = new Main();
+  plugin.scheduleClock = () => {};
   let finish;
   let fetches = 0;
   const frames = [];
@@ -42,6 +43,7 @@ test('refresh input policy survives completion and concurrent requests cannot re
 
 test('failed refresh clears busy state without losing its completion policy', async () => {
   const plugin = new Main();
+  plugin.scheduleClock = () => {};
   const frames = [];
   plugin.renderViews = () => frames.push([plugin.isRefreshing(), plugin.shouldAnimateRefreshStatus()]);
   plugin.performRefresh = async () => { throw new Error('unavailable'); };
@@ -49,25 +51,21 @@ test('failed refresh clears busy state without losing its completion policy', as
   assert.deepEqual(frames, [[true, true], [false, true]]);
 });
 
-test('pointer dismissal captures layout after saving and immediately before rendering', async () => {
+test('dismissal saves device-local state before capturing layout', async () => {
   const plugin = new Main();
   const event = { key: 'meeting' };
   plugin.settings = { cachedEvents: [event] };
-  let save;
   const order = [];
-  plugin.saveSettings = () => new Promise(resolve => { save = () => { order.push('saved'); resolve(); }; });
+  plugin.saveLocalState = () => order.push('saved');
   plugin.notifications = { prepareDismissal: key => order.push(key) };
   plugin.renderViews = () => order.push('render');
-  const pending = plugin.dismissEvent(event, true, true);
-  assert.deepEqual(order, []);
-  save(); await pending;
+  await plugin.dismissEvent(event, true, true);
   assert.deepEqual(order, ['saved', 'meeting', 'render']);
   order.length = 0;
-  const keyboard = plugin.dismissEvent(event, true);
-  save(); await keyboard;
+  await plugin.dismissEvent(event, true);
   assert.deepEqual(order, ['saved', 'render']);
   order.length = 0;
-  plugin.saveSettings = async () => { throw new Error('save failed'); };
+  plugin.saveLocalState = () => { throw new Error('save failed'); };
   await assert.rejects(plugin.dismissEvent(event, true, true), /save failed/);
   assert.deepEqual(order, [], 'failed persistence leaves no pending layout snapshot');
 });

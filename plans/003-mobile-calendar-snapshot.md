@@ -36,7 +36,7 @@ Run lint, type checking, release packaging, all existing tests, helper tests, an
 - Same-event note reuse after sync and before metadata indexing, recurring occurrences, changed titles, duplicate selection, task identity and concurrent local actions.
 - Real CodeMirror document text/undo and reading-mode footer behavior, notification suppression on freshness changes, touch CSS and mobile controls.
 
-No app control testing. Physical iPhone behavior, keyboard/safe areas and real Obsidian Sync transport need the user's final device check. Record actual automated results and remaining device checks before delivery. No public release until device validation; produce a reviewable branch and local package.
+No app control testing. Physical iPhone behavior, keyboard/safe areas and real Obsidian Sync transport need the user's final device check. Record actual automated results and remaining device checks before delivery. Publish a testing prerelease when requested by the user; keep the stable release unchanged until device validation.
 
 ## Implemented result and checks
 
@@ -58,4 +58,4 @@ No app control testing. Physical iPhone behavior, keyboard/safe areas and real O
 6. Cancel or change a test event, refresh either Mac, then check that the phone updates. Leave a snapshot for over an hour and confirm its banners disappear while saved sidebar meetings remain.
 7. Briefly take the phone offline, return to Obsidian, and confirm there are no calendar sync error notices. Bring it online and let a valid newer snapshot restore the appropriate banners.
 
-Do not publish a public release until this device check is complete. Offline duplicate notes/task lines remain intact for the user to resolve; no automated deletion or merging is performed.
+The user requested a public testing prerelease on September 24. Keep it marked as a prerelease until this device check is complete. Offline duplicate notes/task lines remain intact for the user to resolve; no automated deletion or merging is performed.

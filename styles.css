@@ -10,7 +10,7 @@
 }
 
 /* Hide the sidebar tab icon and its separator for this view; the in-view pill replaces them. */
-.workspace-tab-header[data-type="simple-meeting-sidebar-view"] {
+body:not(.is-mobile) .workspace-tab-header[data-type="simple-meeting-sidebar-view"] {
   display: none;
 }
 
@@ -480,4 +480,45 @@ body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
 
 @media (prefers-reduced-motion: reduce) {
   .wcm-event-actions, .wcm-pill { transition: none; }
+}
+
+/* Mobile uses Obsidian's sidebar navigation and a normal touch button. */
+.is-mobile .wcm-calendar-status {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  margin-bottom: var(--size-4-2);
+  overflow-wrap: anywhere;
+}
+.is-mobile .wcm-reload {
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
+  margin-bottom: var(--size-4-3);
+}
+.is-mobile .wcm-event { grid-template-columns: minmax(0, 1fr); }
+.is-mobile .wcm-event-title { white-space: normal; overflow-wrap: anywhere; }
+.is-mobile .wcm-event-actions { opacity: 1; justify-self: end; gap: 4px; }
+.is-mobile .wcm-notifications .wcm-notification { grid-template-columns: minmax(0, 1fr); }
+.is-mobile .wcm-notifications .wcm-event-actions { grid-column: 1; padding-inline-start: 0; }
+.is-mobile .wcm-action,
+.is-mobile .wcm-notifications .wcm-action {
+  flex-basis: 44px;
+  min-width: 44px;
+  width: 44px;
+  height: 44px;
+}
+/* iPads with a mouse or trackpad still keep mobile actions visible and full size. */
+.is-mobile .wcm-notifications .wcm-action:hover:not(:disabled),
+.is-mobile .wcm-notifications .wcm-action:active {
+  flex-basis: 44px;
+  min-width: 44px;
+  width: 44px;
+  height: 44px;
+}
+.is-mobile .wcm-notifications .wcm-event-actions .wcm-notification-secondary {
+  opacity: 1;
+  pointer-events: auto;
+}
+.is-mobile .wcm-notifications .wcm-event-actions .wcm-notification-secondary:disabled {
+  opacity: 0.45;
 }

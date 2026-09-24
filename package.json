@@ -1,6 +1,6 @@
 {
   "name": "simple-meeting-sidebar",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": true,
   "description": "Apple Calendar meetings on Mac, with synced mobile sidebars and daily-note banners.",
   "type": "module",

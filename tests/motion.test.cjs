@@ -2,16 +2,94 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { JSDOM } = require('jsdom');
 const { build } = require('esbuild');
-let NotificationMotion, RefreshStatus;
+const { readFileSync } = require('node:fs');
+let NotificationMotion, waitForNotificationExit, RefreshStatus;
 
 test.before(async () => {
   const result = await build({
-    stdin: { contents: 'export { NotificationMotion } from "./src/notification-motion"; export { RefreshStatus } from "./src/refresh-status";', resolveDir: process.cwd() },
+    stdin: { contents: 'export { NotificationMotion, waitForNotificationExit } from "./src/notification-motion"; export { RefreshStatus } from "./src/refresh-status";', resolveDir: process.cwd() },
     bundle: true, platform: 'node', format: 'cjs', write: false,
   });
   const module = { exports: {} };
   new Function('module', 'exports', result.outputFiles[0].text)(module, module.exports);
-  ({ NotificationMotion, RefreshStatus } = module.exports);
+  ({ NotificationMotion, waitForNotificationExit, RefreshStatus } = module.exports);
+});
+
+function transition(transitionProperty) {
+  let finish, cancel;
+  return { transitionProperty, playState: 'running',
+    finished: new Promise((resolve, reject) => { finish = resolve; cancel = reject; }),
+    finish() { this.playState = 'finished'; finish(); },
+    cancel() { this.playState = 'idle'; cancel(new Error('Transition retargeted')); } };
+}
+
+test('exit waits for both CSS properties and any replacement after interruption', async t => {
+  const f = fixture(t);
+  const row = f.rows.get('a');
+  const fade = transition('opacity'), travel = transition('translate');
+  // Unrelated theme animations and vertical movement must not block dismissal.
+  let animations = [fade, travel, { playState: 'running', finished: new Promise(() => {}) },
+    transition('color')];
+  row.getAnimations = () => animations;
+  let done = false;
+  const pending = waitForNotificationExit(row).then(() => { done = true; });
+  travel.finish();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(done, false, 'space is held while opacity is still transitioning');
+  const replacement = transition('opacity');
+  animations = [replacement];
+  fade.cancel();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(done, false, 'a changed transition must finish before space is released');
+  replacement.finish();
+  await pending;
+  assert.equal(done, true);
+});
+
+test('detached exits and disabled transitions settle without timers or leftover effects', async t => {
+  const f = fixture(t);
+  const row = f.rows.get('a');
+  await waitForNotificationExit(row);
+  const fade = transition('opacity');
+  row.getAnimations = () => [fade];
+  const pending = waitForNotificationExit(row);
+  row.remove();
+  fade.cancel();
+  await pending;
+  assert.equal(f.frames.size, 0);
+  assert.equal(f.records.length, 0);
+});
+
+test('exit styles keep the row in flow and compose with vertical movement', t => {
+  const dom = new JSDOM('<div class="wcm-notifications"><div class="wcm-notification"></div></div>');
+  t.after(() => dom.window.close());
+  const doc = dom.window.document;
+  const style = doc.createElement('style');
+  style.textContent = readFileSync('styles.css', 'utf8');
+  doc.head.append(style);
+  const row = doc.querySelector('.wcm-notification');
+  row.style.transform = 'translateY(20px)';
+  const before = dom.window.getComputedStyle(row);
+  row.classList.add('is-dismissing');
+  const during = dom.window.getComputedStyle(row);
+  assert.equal(during.opacity, '0');
+  assert.equal(during.translate, '-8px 0');
+  assert.equal(during.transform, 'translateY(20px)', 'closing does not replace the vertical transform');
+  assert.equal(during.visibility, 'visible', 'only opacity fades before completion');
+  for (const property of ['display', 'height', 'minHeight', 'padding', 'margin']) {
+    assert.equal(during[property], before[property], `${property} stays in flow through the exit`);
+  }
+  assert.equal(during.transition, 'opacity 200ms var(--wcm-notification-fade-ease), translate 200ms var(--wcm-notification-ease)');
+  // JSDOM does not evaluate media preferences, so apply the actual reduced rules.
+  const reduced = doc.createElement('style');
+  reduced.textContent = [...style.sheet.cssRules]
+    .filter(rule => rule.media?.mediaText === '(prefers-reduced-motion: reduce)')
+    .flatMap(rule => [...rule.cssRules].filter(child => child.selectorText).map(child => child.cssText)).join('\n');
+  doc.head.append(reduced);
+  assert.equal(dom.window.getComputedStyle(row).translate, 'none');
+  assert.equal(dom.window.getComputedStyle(row).transition, 'opacity 100ms var(--wcm-notification-fade-ease)');
+  row.classList.add('is-dismissed');
+  assert.equal(dom.window.getComputedStyle(row).visibility, 'hidden');
 });
 
 function fixture(t) {

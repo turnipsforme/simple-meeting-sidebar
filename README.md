@@ -52,7 +52,7 @@ Turn on **Meeting notifications** in settings to show upcoming meetings below to
 
 Each compact banner shows a lighter local meeting time on the left, the title, and line icons to add a task, create a meeting note, or dismiss the notification. On a mouse, the extra actions appear when you move over the controls; they also appear on keyboard focus and stay visible on touch devices. Dismissing a banner leaves its sidebar row available. A sidebar dismissal or successful task/note action hides the meeting in both places. Dismissals sync through small records in `Meetings/_calendar/dismissals/`. They remain hidden after manual refreshes and restarts, and simultaneous offline dismissals can sync without replacing one another. Update both devices to this beta to share dismissals.
 
-The banners sit immediately above Influx's footer, also work without Influx, and never change your daily note's text. Influx's optional top-of-page placement stays at the top. Notifications reuse the existing event cache; there is no extra calendar polling.
+The banners sit immediately above Influx's footer, also work without Influx, and never change your daily note's text. When you close a banner, its space stays in place until the short leftward fade finishes, then the note adjusts once. Influx's optional top-of-page placement stays at the top. Notifications reuse the existing event cache; there is no extra calendar polling.
 
 **Only show notifications when the right sidebar is hidden** is on by default on desktop. Opening the right sidebar fades banners out; closing it brings back only untouched, upcoming meetings. This setting has no effect on mobile.
 

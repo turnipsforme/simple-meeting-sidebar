@@ -2,6 +2,7 @@ import { ItemView, Modal, Platform, TFile, setIcon, type App, type WorkspaceLeaf
 import type { CalendarEvent } from "./models";
 import { formatMeetingTime } from "./utils";
 import { RefreshStatus } from "./refresh-status";
+import { waitForNotificationExit } from "./notification-motion";
 
 export const SIMPLE_MEETING_SIDEBAR_VIEW = "simple-meeting-sidebar-view";
 
@@ -359,28 +360,24 @@ export function renderEventRow(
         () => controller.dismissEvent(event, notification, notification && mouseEvent.detail > 0));
       // Keyboard activation is immediate. Mouse dismissal finishes its fade before
       // the shared event action updates every open daily-note pane.
-      if (!notification || mouseEvent.detail === 0 || typeof row.animate !== "function") {
+      if (!notification || mouseEvent.detail === 0 || typeof row.getAnimations !== "function") {
         void dismiss();
         return;
       }
       row.inert = true;
       row.classList.add("is-dismissing");
-      const win = row.ownerDocument.defaultView!;
-      const reduced = win.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const current = win.getComputedStyle(row);
-      const animation = row.animate([
-        { opacity: current.opacity, transform: current.transform },
-        { opacity: 0, transform: reduced ? "none" : "translateX(-8px)" },
-      ], { duration: reduced ? 100 : 160, easing: "cubic-bezier(0.23, 1, 0.32, 1)", fill: "forwards" });
-      void animation.finished.then(async () => {
-        // Save the hidden end state independently of the animation effect. Busy
-        // renders and effect cleanup must never reveal a completed dismissal.
+      void waitForNotificationExit(row).then(async () => {
+        // The live row holds the footer's height through the entire exit. Only
+        // then hide it from paint and let the shared action remove its space.
         row.classList.add("is-dismissed");
         if (row.isConnected) await dismiss();
-      }, () => undefined).finally(() => {
-        animation.cancel();
-        row.inert = false;
-        row.classList.remove("is-dismissing", "is-dismissed");
+      }).finally(() => {
+        // Keep successful dismissals hidden even if a pane redraw is deferred.
+        // A failed action leaves the original row available to retry.
+        if (!event.notificationHidden && !event.sidebarHidden) {
+          row.inert = false;
+          row.classList.remove("is-dismissing", "is-dismissed");
+        }
       });
     });
   }

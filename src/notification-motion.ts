@@ -1,5 +1,19 @@
 import type { EditorView } from "@codemirror/view";
 
+/** Keep the row in flow until its own CSS exit finishes, including retargets. */
+export async function waitForNotificationExit(row: HTMLElement): Promise<void> {
+  while (row.isConnected) {
+    const transitions = row.getAnimations().filter((animation) =>
+      "transitionProperty" in animation
+      && (animation.transitionProperty === "opacity" || animation.transitionProperty === "translate")
+      && (animation.playState === "running" || animation.playState === "paused"));
+    if (!transitions.length) return;
+    // A theme or reduced-motion change can cancel and replace a transition.
+    // Recheck only on completion/cancellation, never on every animation frame.
+    await Promise.allSettled(transitions.map((animation) => animation.finished));
+  }
+}
+
 interface MountedRows {
   rows: Map<string, HTMLElement>;
   editor: EditorView | undefined;

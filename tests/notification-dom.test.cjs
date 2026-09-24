@@ -73,6 +73,7 @@ test('notification containers stay detached until mounted in the editor or readi
   let sidebarOpen = false;
   const busy = new Set();
   let pendingSave;
+  let actionCount = 0;
   let subscriber;
   const contentEl = create.call(win.document.body, 'div');
   const preview = create.call(contentEl, 'div', {cls: 'markdown-preview-view'});
@@ -91,6 +92,7 @@ test('notification containers stay detached until mounted in the editor or readi
     subscribe(fn) { subscriber = fn; return () => { subscriber = undefined; }; },
     renderViews() { subscriber?.(); },
     async runEventAction(event, action) {
+      actionCount++;
       busy.add(event.key); subscriber();
       try { await action(); } finally { busy.delete(event.key); subscriber(); }
     },
@@ -153,28 +155,41 @@ test('notification containers stay detached until mounted in the editor or readi
   events = [second, event]; subscriber();
   assert.equal(banner.lastElementChild, originalRow, 'calendar sorting moves existing rows');
   events = [event]; subscriber();
-  let finishExit;
-  let exitOptions;
-  let exitFrames;
-  let canceled = false;
+  function mockExit(row, properties = ['opacity', 'translate']) {
+    const transitions = properties.map(transitionProperty => {
+      let finish;
+      const animation = { transitionProperty, playState: 'running',
+        finished: new Promise(resolve => { finish = resolve; }),
+        finish() { this.playState = 'finished'; finish(); } };
+      return animation;
+    });
+    row.getAnimations = () => {
+      assert.ok(row.classList.contains('is-dismissing'), 'read transitions after applying the exit state');
+      return transitions;
+    };
+    return transitions;
+  }
   win.matchMedia = () => ({ matches: false });
-  originalRow.animate = (frames, options) => {
-    exitFrames = frames; exitOptions = options;
-    return { finished: new Promise(resolve => { finishExit = resolve; }), cancel() { canceled = true; } };
-  };
+  const transitions = mockExit(originalRow);
   originalRow.querySelector('[data-icon=x]').dispatchEvent(new win.MouseEvent('click', { detail: 1 }));
   assert.equal(originalRow.inert, true, 'the exiting row ignores repeated actions');
   assert.equal(event.notificationHidden, undefined, 'dismissal waits for the visible exit');
-  assert.equal(exitOptions.duration, 160);
-  assert.equal(exitFrames[1].transform, 'translateX(-8px)');
+  originalRow.querySelector('[data-icon=x]').dispatchEvent(new win.MouseEvent('click', { detail: 1 }));
+  assert.equal(originalRow.classList.contains('is-dismissed'), false, 'the row stays visible during the fade');
+  assert.ok(preview.classList.contains('wcm-has-notifications'), 'reading-mode space stays until the exit finishes');
+  assert.ok(editor.dom.classList.contains('wcm-has-notifications'), 'editor space stays until the exit finishes');
+  transitions[1].finish();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(event.notificationHidden, undefined, 'finishing movement must not cut the fade short');
+  assert.equal(banner.querySelector('.wcm-notification'), originalRow);
+  assert.equal(editor.dom.querySelector('.wcm-notifications'), editorBanner);
   let finishSave;
   pendingSave = new Promise(resolve => { finishSave = resolve; });
-  finishExit();
+  transitions[0].finish();
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal(banner.querySelector('.wcm-notification'), originalRow,
     'the post-animation busy render must not replace the hidden row with a visible clone');
   assert.ok(originalRow.classList.contains('is-dismissed'), 'the hidden final frame survives while saving');
-  assert.equal(canceled, false, 'the exit effect stays in place until removal');
   plugin.settings.monochromeNotifications = true; subscriber();
   editor.dispatch({ changes: { from: editor.state.doc.length, insert: '\nMore note content' } });
   banner.remove();
@@ -184,27 +199,80 @@ test('notification containers stay detached until mounted in the editor or readi
   finishSave();
   await new Promise(resolve => setTimeout(resolve, 0));
   pendingSave = undefined;
-  assert.equal(canceled, true, 'animation resources are released after dismissal');
+  assert.ok(originalRow.classList.contains('is-dismissed'), 'successful cleanup cannot reveal a saved dismissal');
+  assert.equal(actionCount, 1, 'repeated clicks dismiss the meeting only once');
   assert.equal(preview.querySelector('.wcm-notifications'), null, 'the final row leaves no empty footer');
+  assert.equal(editor.dom.querySelector('.wcm-notifications'), null);
+  assert.equal(preview.classList.contains('wcm-has-notifications'), false);
+  assert.equal(editor.dom.classList.contains('wcm-has-notifications'), false);
   delete event.notificationHidden; subscriber();
   banner = preview.querySelector('.wcm-notifications');
   const reducedRow = banner.querySelector('.wcm-notification');
   win.matchMedia = () => ({ matches: true });
-  reducedRow.animate = originalRow.animate;
+  const reducedExit = mockExit(reducedRow, ['opacity']);
   reducedRow.querySelector('[data-icon=x]').dispatchEvent(new win.MouseEvent('click', { detail: 1 }));
-  assert.equal(exitOptions.duration, 100);
-  assert.equal(exitFrames[1].transform, 'none', 'reduced motion fades without travel');
-  finishExit();
+  assert.equal(event.notificationHidden, undefined, 'reduced motion still waits for its fade');
+  reducedExit[0].finish();
   await new Promise(resolve => setTimeout(resolve, 0));
   delete event.notificationHidden; subscriber();
+  const closingEditorRow = editor.dom.querySelector('.wcm-notification');
+  const editorExit = mockExit(closingEditorRow);
+  closingEditorRow.querySelector('[data-icon=x]').dispatchEvent(new win.MouseEvent('click', { detail: 1 }));
+  plugin.settings.monochromeNotifications = false; subscriber();
+  editor.dispatch({ changes: { from: editor.state.doc.length, insert: '\n' } });
+  assert.equal(editor.dom.querySelector('.wcm-notification'), closingEditorRow, 'typing and refresh keep the fading editor row');
+  assert.ok(editor.dom.classList.contains('wcm-has-notifications'));
+  editorExit.forEach(animation => animation.finish());
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(editor.dom.querySelector('.wcm-notifications'), null);
+  assert.equal(editor.dom.classList.contains('wcm-has-notifications'), false);
+  editor.dispatch({ changes: { from: editor.state.doc.length - 1, to: editor.state.doc.length } });
+  delete event.notificationHidden; subscriber();
   banner = preview.querySelector('.wcm-notifications');
-  banner.querySelector('.wcm-notification').animate = () => { throw new Error('keyboard dismissal must not animate'); };
+  banner.querySelector('.wcm-notification').getAnimations = () => { throw new Error('keyboard dismissal must not animate'); };
   banner.querySelector('[data-icon=x]').click();
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal(events.length, 1, 'notification-only dismissal leaves the shared sidebar event');
   assert.equal(preview.querySelector('.wcm-notifications'), null);
   assert.equal(editor.dom.querySelector('.wcm-notifications'), null);
   assert.equal(preview.classList.contains('wcm-has-notifications'), false);
+
+  // A deferred redraw cannot flash the finished row. An action that did not
+  // update the event must restore the controls, and detached views do no work.
+  const isolated = create.call(win.document.body, 'div', { cls: 'wcm-notifications' });
+  let detachedActions = 0;
+  let hideOnDismiss = false;
+  const isolatedEvent = { ...second };
+  const isolatedController = { ...plugin,
+    async runEventAction(_event, action) { await action(); },
+    async dismissEvent(event) { detachedActions++; if (hideOnDismiss) event.notificationHidden = true; },
+  };
+  renderEventRow(isolated, isolatedEvent, isolatedController, 'notification');
+  const isolatedRow = isolated.firstElementChild;
+  let isolatedExit = mockExit(isolatedRow);
+  isolatedRow.querySelector('[data-icon=x]').dispatchEvent(new win.MouseEvent('click', { detail: 1 }));
+  isolatedExit.forEach(animation => animation.finish());
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(isolatedRow.inert, false, 'an unsuccessful action leaves the row usable');
+  assert.equal(isolatedRow.classList.contains('is-dismissed'), false);
+  hideOnDismiss = true;
+  isolatedExit = mockExit(isolatedRow);
+  isolatedRow.querySelector('[data-icon=x]').dispatchEvent(new win.MouseEvent('click', { detail: 1 }));
+  isolatedExit.forEach(animation => animation.finish());
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.ok(isolatedRow.isConnected);
+  assert.ok(isolatedRow.classList.contains('is-dismissed'), 'save completion cannot reveal a row awaiting redraw');
+  assert.equal(isolatedRow.inert, true);
+  isolated.replaceChildren();
+  renderEventRow(isolated, { ...second }, isolatedController, 'notification');
+  const detachedRow = isolated.firstElementChild;
+  const detachedExit = mockExit(detachedRow);
+  detachedRow.querySelector('[data-icon=x]').dispatchEvent(new win.MouseEvent('click', { detail: 1 }));
+  isolated.remove();
+  detachedExit.forEach(animation => animation.finish());
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(detachedActions, 2, 'closing a view during exit does not save a new dismissal');
+
   delete event.notificationHidden; subscriber();
   assert.ok(preview.querySelector('.wcm-notifications'));
   // Freshness changes remove banners in both modes without changing the editor document.

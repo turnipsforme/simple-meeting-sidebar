@@ -227,7 +227,7 @@ body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
   container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
   padding-block: 12px 0;
   white-space: normal;
   font-family: var(--font-text);
@@ -256,7 +256,7 @@ body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
   box-shadow: var(--wcm-notification-shadow, var(--input-shadow, none));
   opacity: 1;
   transform: none;
-  /* Horizontal entry/exit composes with the surviving rows' vertical transform. */
+  /* Fade in place so touch targets and replacement slots never slide sideways. */
   translate: 0 0;
   transition: opacity 200ms var(--wcm-notification-fade-ease), translate 200ms var(--wcm-notification-ease);
 }
@@ -264,13 +264,13 @@ body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
 @starting-style {
   .wcm-notifications .wcm-notification-enter {
     opacity: 0;
-    translate: 8px 0;
+    translate: none;
   }
 }
 
 .wcm-notifications .wcm-notification.is-dismissing {
   opacity: 0;
-  translate: -8px 0;
+  translate: none;
   pointer-events: none;
 }
 
@@ -346,9 +346,7 @@ body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
 }
 
 /* Reset Obsidian/theme button chrome on this surface, including hover. */
-.wcm-notifications .wcm-action,
-.wcm-notifications .wcm-action:hover:not(:disabled),
-.wcm-notifications .wcm-action:active {
+.wcm-notifications .wcm-action {
   appearance: none;
   flex: 0 0 24px;
   width: 24px;
@@ -539,7 +537,7 @@ body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
 /* Sidebar visibility is temporary and never marks a meeting as dismissed. */
 .wcm-notifications-suppressed .wcm-notification {
   opacity: 0;
-  translate: -8px 0;
+  translate: none;
   pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -547,7 +545,7 @@ body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
 }
 
 /* A single-line heading and one shared action strip keep phone banners compact. */
-.is-mobile .wcm-notifications { gap: 8px; }
+.is-mobile .wcm-notifications { gap: 0; }
 .is-mobile .wcm-notifications .wcm-notification {
   width: 100%;
   padding: 0;
@@ -590,4 +588,36 @@ body .workspace-split.mod-right-split .wcm-borderless-neighbor .workspace-leaf {
   bottom: 12px;
   width: 1px;
   background: var(--background-modifier-border);
+}
+
+/* Row margins survive editor/theme display overrides, just like Influx cards.
+   Eight pixels is two native spacing units for these smaller rows. */
+body .wcm-notifications > .wcm-notification + .wcm-notification {
+  margin-block-start: var(--size-4-2, 8px) !important;
+}
+
+.wcm-notifications-more {
+  width: max(80%, min(100%, 24rem));
+  margin-inline: auto;
+  margin-block-start: var(--size-4-2, 8px);
+  padding-inline: 12px;
+  box-sizing: border-box;
+  font: inherit;
+  color: var(--text-muted);
+}
+.wcm-notifications-suppressed .wcm-notifications-more { visibility: hidden; }
+.is-mobile .wcm-notifications-more { width: 100%; padding-inline: 10px; }
+@container (max-width: 420px) {
+  .wcm-notifications-more { width: 100%; padding-inline: 10px; }
+}
+
+/* WebKit synthesizes hover before click. All states must keep the same hit area. */
+.is-mobile .wcm-notifications .wcm-event-actions .wcm-action,
+.is-mobile .wcm-notifications .wcm-event-actions .wcm-action:hover:not(:disabled),
+.is-mobile .wcm-notifications .wcm-event-actions .wcm-action:active {
+  width: 100%;
+  min-width: 44px;
+  height: 44px;
+  transform: none;
+  touch-action: manipulation;
 }

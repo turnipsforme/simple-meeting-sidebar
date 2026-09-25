@@ -10,6 +10,7 @@ export interface CalendarEvent {
   start: string;
   end: string;
   allDay: boolean;
+  isRecurring?: boolean;
   calendar: string;
   hasGoogleMeet: boolean;
   hasMeetingLink?: boolean;
@@ -30,6 +31,8 @@ export interface StoredPluginSettings {
   sidebarPillOffset: number;
   selectedCalendars: string[] | null;
   onlyMeetingLinkEvents: boolean;
+  ignoreAllDayEvents: boolean;
+  ignoreRepeatingEvents: boolean;
   meetingNotifications: boolean;
   notificationsOnlyWhenSidebarHidden: boolean;
   monochromeNotifications: boolean;
@@ -51,6 +54,8 @@ export const DEFAULT_SETTINGS: StoredPluginSettings = {
   sidebarPillOffset: 0,
   selectedCalendars: null,
   onlyMeetingLinkEvents: false,
+  ignoreAllDayEvents: true,
+  ignoreRepeatingEvents: false,
   meetingNotifications: false,
   notificationsOnlyWhenSidebarHidden: true,
   monochromeNotifications: true,

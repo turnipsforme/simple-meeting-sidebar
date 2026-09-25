@@ -55,9 +55,21 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
           if (value) void this.calendarPlugin.refreshToday(false).catch(() => undefined);
         }));
 
+    for (const [key, name, description] of [
+      ["ignoreAllDayEvents", "Ignore all day events", "Hide all-day events from the sidebar and inline meetings. On by default."],
+      ["ignoreRepeatingEvents", "Ignore repeating events", "Hide recurring events from the sidebar and inline meetings. Refresh on your Mac after upgrading to identify repeats."],
+    ] as const) {
+      new Setting(containerEl).setName(name).setDesc(description)
+        .addToggle((toggle) => toggle.setValue(this.calendarPlugin.settings[key]).onChange(async (value) => {
+          this.calendarPlugin.settings[key] = value;
+          this.calendarPlugin.renderViews();
+          await this.calendarPlugin.saveSettings();
+        }));
+    }
+
     new Setting(containerEl)
-      .setName("Meeting notifications")
-      .setDesc("Show upcoming meetings in today's and tomorrow's daily notes, above linked mentions. Banners disappear at the meeting start time. Dismissals sync between devices.")
+      .setName("Inline meetings")
+      .setDesc("Show up to three upcoming meetings above linked mentions. Tomorrow’s meetings appear in tomorrow’s note after 5pm. Banners disappear at the meeting start time. Dismissals sync between devices.")
       .addToggle((toggle) => toggle
         .setValue(this.calendarPlugin.settings.meetingNotifications)
         .onChange(async (value) => {
@@ -67,7 +79,7 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
         }));
 
     if (!Platform.isMobile) new Setting(containerEl)
-      .setName("Only show notifications when the right sidebar is hidden")
+      .setName("Only show inline meetings when the right sidebar is hidden")
       .setDesc("Fade inline banners out when the right sidebar opens, and back in when it closes. Dismissed meetings stay hidden.")
       .addToggle((toggle) => toggle
         .setValue(this.calendarPlugin.settings.notificationsOnlyWhenSidebarHidden)
@@ -78,7 +90,7 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Neutral notifications")
+      .setName("Neutral inline meetings")
       .setDesc("Use your theme's neutral background, text, and borders. On by default; turn off for blue banners.")
       .addToggle((toggle) => toggle
         .setValue(this.calendarPlugin.settings.monochromeNotifications)
@@ -90,7 +102,7 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Include meeting time in tasks")
-      .setDesc("Prefix new tasks with the meeting time, for example “10:30am weekly catch-up”. All-day events use “all day”.")
+      .setDesc("Prefix new tasks with the meeting time, for example “10:30am weekly catch-up”. All-day events always use just the event title.")
       .addToggle((toggle) => toggle
         .setValue(this.calendarPlugin.settings.includeMeetingTimeInTask)
         .onChange(async (value) => {
@@ -187,7 +199,7 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName(reader ? "Reload synced meetings" : "Refresh now")
-      .setDesc(reader ? "Reads the latest snapshot received on this device. It does not request new calendar data from your Mac." : "Refreshes yesterday, today and the next seven days, and restores handled events to the sidebar.")
+      .setDesc(reader ? "Reads the latest snapshot received on this device. It does not request new calendar data from your Mac." : "Refreshes yesterday, today and the next seven days, and updates synced meetings.")
       .addButton((button) => button
         .setButtonText(reader ? "Reload" : "Refresh")
         .onClick(async (event) => {

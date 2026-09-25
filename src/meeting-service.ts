@@ -24,7 +24,8 @@ export class MeetingService {
   async addTask(event: CalendarEvent, date?: Date): Promise<boolean> {
     if (event.taskAdded) return false;
     const dailyNote = await (date ? this.dailyNotes.getOrCreateDate(date) : this.dailyNotes.getOrCreateToday());
-    return this.dailyNotes.addTask(dailyNote, meetingTaskTitle(event, this.shouldIncludeTime()), eventTaskMarker(event));
+    return this.dailyNotes.addTask(dailyNote, meetingTaskTitle(event, this.shouldIncludeTime()), eventTaskMarker(event),
+      [meetingTaskTitle(event, false), meetingTaskTitle(event, true)]);
   }
 
   createMeeting(event: CalendarEvent, date?: Date): Promise<MeetingCreationResult | null> {

@@ -26,6 +26,8 @@ class MeetingWidget extends WidgetType {
     return true;
   }
 
+  ignoreEvent(): boolean { return true; }
+
   destroy(container: HTMLElement): void { this.dispose(container); }
 }
 
@@ -128,15 +130,25 @@ export class MeetingNotifications extends Component {
   private render(container: HTMLElement, events: CalendarEvent[], date: Date, editor?: EditorView): void {
     // A widget can be redrawn while persistence is in flight, before refresh()
     // replaces its captured event list. Never resurrect a newly hidden event.
-    const visibleEvents = events.filter((event) => !event.notificationHidden && !event.sidebarHidden);
+    const availableEvents = events.filter((event) => !event.notificationHidden && !event.sidebarHidden);
+    const previous = this.rows.get(container) ?? new Map<string, NotificationRow>();
+    const candidates = availableEvents.slice(0, 3);
+    // Fill the vacated slot instead of shifting the other two banners on each action.
+    const queued = candidates.filter((event) => !previous.has(event.key));
+    const visibleEvents: CalendarEvent[] = [];
+    for (const key of previous.keys()) {
+      const surviving = candidates.find((event) => event.key === key);
+      const event = surviving ?? queued.shift();
+      if (event) visibleEvents.push(event);
+    }
+    visibleEvents.push(...queued);
     container.className = "wcm-notifications";
     container.classList.toggle("wcm-notifications-suppressed", this.suppressed);
     container.inert = this.suppressed;
     container.setAttribute("aria-hidden", String(this.suppressed));
     container.classList.toggle("wcm-notifications-monochrome", this.plugin.settings.monochromeNotifications);
     container.setAttribute("role", "region");
-    container.setAttribute("aria-label", "Meeting notifications");
-    const previous = this.rows.get(container) ?? new Map<string, NotificationRow>();
+    container.setAttribute("aria-label", "Inline meetings");
     const next = new Map<string, NotificationRow>();
     const eventKeys = new Set(visibleEvents.map((event) => event.key));
     // Remove first so surviving rows don't need to be reinserted around a gap.
@@ -175,6 +187,13 @@ export class MeetingNotifications extends Component {
       position = element.nextSibling;
       next.set(event.key, { signature, element });
     }
+    let more = container.querySelector<HTMLElement>(":scope > .wcm-notifications-more");
+    const remaining = availableEvents.length - visibleEvents.length;
+    if (remaining > 0) {
+      if (!more) more = container.createDiv({ cls: "wcm-notifications-more" });
+      more.textContent = `+ ${remaining} more`;
+      container.appendChild(more);
+    } else more?.remove();
     this.rows.set(container, next);
     this.motion.update(container, new Map([...next].map(([key, row]) => [key, row.element])), editor);
   }

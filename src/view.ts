@@ -316,13 +316,17 @@ export function renderEventRow(
   title.setAttr("title", event.title);
 
   const actions = row.createDiv({ cls: "wcm-event-actions" });
+  // Keep editor selection and mobile swipe handlers out of button gestures.
+  // Do not preventDefault: native focus, scrolling and click synthesis still work.
+  for (const type of ["pointerdown", "pointerup", "touchstart", "touchend", "mousedown"]) {
+    actions.addEventListener(type, (input) => input.stopPropagation());
+  }
   const taskDay = dailyNoteDate && dailyNoteDate.toDateString() !== new Date().toDateString() ? "tomorrow's" : "today's";
   const taskButton = actions.createEl("button", {
     cls: notification ? "wcm-action wcm-notification-secondary clickable-icon" : "wcm-action",
     text: notification ? "" : "•",
     attr: {
       "aria-label": event.taskAdded ? `Already added to ${taskDay} tasks` : `Add to ${taskDay} tasks`,
-      title: event.taskAdded ? `Already added to ${taskDay} tasks` : `Add to ${taskDay} tasks`,
       type: "button",
     },
   });
@@ -338,7 +342,6 @@ export function renderEventRow(
     text: notification ? "" : "••",
     attr: {
       "aria-label": meetingCreated ? "Meeting note already created" : "Create meeting note",
-      title: meetingCreated ? "Meeting note already created" : "Create meeting note",
       type: "button",
     },
   });
@@ -349,7 +352,7 @@ export function renderEventRow(
     const label = surface === "notification" ? "Dismiss notification" : "Dismiss meeting";
     const closeButton = actions.createEl("button", {
       cls: notification ? "wcm-action wcm-notification-close clickable-icon" : "wcm-action",
-      attr: { "aria-label": label, title: label, type: "button" },
+      attr: { "aria-label": label, type: "button" },
     });
     setIcon(closeButton, "x");
     closeButton.disabled = controller.isEventBusy(event.key);

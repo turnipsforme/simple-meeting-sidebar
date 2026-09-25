@@ -8,6 +8,7 @@ private struct CalendarEventOutput: Codable {
     let start: Date
     let end: Date
     let allDay: Bool
+    let isRecurring: Bool
     let calendar: String
     let hasMeetingLink: Bool
     let location: String?
@@ -78,6 +79,7 @@ private struct CalendarHelper {
                         start: event.startDate,
                         end: event.endDate,
                         allDay: event.isAllDay,
+                        isRecurring: event.hasRecurrenceRules || event.isDetached,
                         calendar: event.calendar?.title ?? "",
                         hasMeetingLink: [event.url?.absoluteString, event.location, event.notes]
                             .compactMap { $0 }.contains(where: hasMeetingLink),
@@ -179,6 +181,7 @@ private struct CalendarHelper {
                 start: Date(timeIntervalSince1970: 0),
                 end: Date(timeIntervalSince1970: 1800),
                 allDay: false,
+                isRecurring: true,
                 calendar: "Test",
                 hasMeetingLink: true,
                 location: nil,

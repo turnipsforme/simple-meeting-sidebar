@@ -216,6 +216,10 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
   isPublishing(): boolean { return this.canUseAppleCalendar(); }
 
   getNotificationEvents(date = new Date()): CalendarEvent[] {
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    if (localDateKey(date) === localDateKey(tomorrow) && now.getHours() < 17) return [];
     if (this.isSnapshotReader() && (!snapshotAllowsNotifications(this.snapshot, this.snapshotVerified)
       || !this.calendarSelectionMatches())) return [];
     return this.getEventsForDate(localDateKey(date))
@@ -282,10 +286,8 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
   }
 
   async addEventAsTask(event: CalendarEvent, date?: Date): Promise<void> {
-    const changed = await this.meetingService.addTask(event, date);
+    await this.meetingService.addTask(event, date);
     await this.updateEventState(event.key, { taskAdded: true, sidebarHidden: true });
-    const day = date && localDateKey(date) !== localDateKey(new Date()) ? "tomorrow's" : "today's";
-    new Notice(changed ? `Added “${event.title}” to ${day} tasks.` : `“${event.title}” is already in ${day} tasks.`);
   }
 
   async createEventMeeting(event: CalendarEvent, date?: Date): Promise<void> {
@@ -434,6 +436,9 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
     midnight.setHours(24, 0, 0, 0);
     const expires = (this.snapshot?.generatedAt ?? 0) + NOTIFICATION_MAX_AGE_MS;
     let next = this.isSnapshotReader() && expires > Date.now() ? Math.min(expires, midnight.getTime()) : midnight.getTime();
+    const evening = new Date();
+    evening.setHours(17, 0, 0, 0);
+    if (evening.getTime() > Date.now()) next = Math.min(next, evening.getTime());
     for (const event of this.settings.cachedEvents) {
       const start = Date.parse(event.start);
       if (!event.allDay && start > Date.now()) next = Math.min(next, start);
@@ -471,6 +476,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         selectedCalendars, events: filterCalendarEvents(freshEvents, selectedCalendars, false),
       }));
+      const previousEvents = this.getTodayEvents();
       this.settings.cachedEvents = mergeRefreshedEventState(freshEvents, this.settings.cachedEvents, true);
       this.dismissals.apply(this.settings.cachedEvents);
       this.snapshot = snapshot;
@@ -484,9 +490,10 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
           this.lastRefreshError = "Meetings refreshed on this Mac. Calendar sync is waiting for the snapshot file to be writable.";
         }
       }
-      if (manual) {
-        const count = this.getTodayEvents().length;
-        new Notice(`Simple Meeting Sidebar: found ${count} event${count === 1 ? "" : "s"} today.`);
+      if (!manual) {
+        const previous = new Map(previousEvents.map((event) => [event.key, JSON.stringify(event)]));
+        const changed = this.getTodayEvents().filter((event) => previous.get(event.key) !== JSON.stringify(event)).length;
+        if (changed) new Notice(`Simple Meeting Sidebar: ${changed} meeting${changed === 1 ? "" : "s"} added or updated.`);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Apple Calendar could not be refreshed.";
@@ -548,7 +555,8 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
       this.indexedEvents = this.settings.cachedEvents;
     }
     return filterCalendarEvents(this.eventsByDate.get(dateKey) ?? [],
-      this.settings.selectedCalendars, this.settings.onlyMeetingLinkEvents);
+      this.settings.selectedCalendars, this.settings.onlyMeetingLinkEvents,
+      this.settings.ignoreAllDayEvents, this.settings.ignoreRepeatingEvents);
   }
 
   private showCalendarEvents(): void {

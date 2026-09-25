@@ -260,5 +260,5 @@ export function formatMeetingTime(event: Pick<CalendarEvent, "start" | "allDay">
 }
 
 export function meetingTaskTitle(event: CalendarEvent, includeTime: boolean): string {
-  return includeTime ? `${formatMeetingTime(event)} ${event.title}` : event.title;
+  return includeTime && !event.allDay ? `${formatMeetingTime(event)} ${event.title}` : event.title;
 }

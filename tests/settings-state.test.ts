@@ -135,3 +135,12 @@ test("fresh helper events cannot import saved action or dismissal state", () => 
   assert.equal(result?.notificationHidden, undefined);
   assert.equal(result?.meetingNotePath, undefined);
 });
+
+
+test("event exclusion defaults migrate old settings and save explicit choices", () => {
+  assert.equal(loadPluginSettings({}).ignoreAllDayEvents, true);
+  assert.equal(loadPluginSettings({}).ignoreRepeatingEvents, false);
+  const saved = loadPluginSettings({ ignoreAllDayEvents: false, ignoreRepeatingEvents: true });
+  assert.equal(saved.ignoreAllDayEvents, false);
+  assert.equal(saved.ignoreRepeatingEvents, true);
+});

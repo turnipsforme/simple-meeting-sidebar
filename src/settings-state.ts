@@ -26,6 +26,8 @@ export function loadPluginSettings(value: unknown): StoredPluginSettings {
     onlyMeetingLinkEvents: typeof raw.onlyMeetingLinkEvents === "boolean"
       ? raw.onlyMeetingLinkEvents
       : raw.onlyGoogleMeetEvents === true,
+    ignoreAllDayEvents: typeof raw.ignoreAllDayEvents === "boolean" ? raw.ignoreAllDayEvents : true,
+    ignoreRepeatingEvents: raw.ignoreRepeatingEvents === true,
     meetingNotifications: raw.meetingNotifications === true,
     notificationsOnlyWhenSidebarHidden: typeof raw.notificationsOnlyWhenSidebarHidden === "boolean"
       ? raw.notificationsOnlyWhenSidebarHidden : DEFAULT_SETTINGS.notificationsOnlyWhenSidebarHidden,
@@ -98,6 +100,7 @@ export function readCalendarEvent(value: unknown, includeSavedState = true): Cal
     ...base,
     ...(typeof value.externalId === "string" && value.externalId ? { externalId: value.externalId.slice(0, 500) } : {}),
     key: makeEventKey(base),
+    ...(typeof value.isRecurring === "boolean" ? { isRecurring: value.isRecurring } : {}),
     ...(value.hasMeetingLink === true ? { hasMeetingLink: true } : {}),
     ...(location ? { location } : {}),
     ...(includeSavedState && value.taskAdded === true ? { taskAdded: true } : {}),

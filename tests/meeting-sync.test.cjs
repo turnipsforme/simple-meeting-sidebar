@@ -46,8 +46,8 @@ test('simultaneous local actions share a newly created note instead of making a 
  const f=fixture();const results=await Promise.all([f.service.createMeeting(event),f.service.createMeeting(event)]);
  assert.equal(results[0].file.path,results[1].file.path);assert.equal(f.writes,1);
 });
-test('tasks are identified after sync even when title/time setting changes, or they are completed',async()=>{
- const f=fixture();assert.equal(await f.service.addTask(event),true);assert.match(f.contents.get('Today.md'),/<!-- simple-meeting:/);
+test('legacy task markers still prevent duplicates after title/time changes',async()=>{
+ const f=fixture();f.contents.set('Today.md',`- [ ] Catch up ${api.eventTaskMarker(event)}\n`);
  f.contents.set('Today.md',f.contents.get('Today.md').replace('- [ ] Catch','- [x] Catch'));
  f.setTime(true);assert.equal(await f.service.addTask({...event,id:'local-b',title:'Renamed'}),false);
  assert.equal((f.contents.get('Today.md').match(/simple-meeting:/g)||[]).length,1);
@@ -63,7 +63,22 @@ test('tomorrow banner actions use tomorrow for tasks and meeting backlinks',asyn
  let requested;
  f.dailyNotes.getOrCreateDate=async date=>{requested=date;return tomorrowFile;};
  await f.service.addTask(event,tomorrow);assert.equal(requested,tomorrow);
- assert.match(f.contents.get('Tomorrow.md'),/simple-meeting:/);assert.doesNotMatch(f.contents.get('Today.md'),/simple-meeting:/);
+ assert.match(f.contents.get('Tomorrow.md'),/- \[ \] Catch up/);assert.doesNotMatch(f.contents.get('Tomorrow.md'),/simple-meeting:/);assert.doesNotMatch(f.contents.get('Today.md'),/Catch up/);
  const meeting=await f.service.createMeeting(event,tomorrow);assert.equal(requested,tomorrow);
  assert.match(f.contents.get(meeting.file.path),/\[\[Tomorrow\]\]/);
+});
+
+test('new tasks contain only time and title, with no tracking comment or all-day prefix',async()=>{
+ const f=fixture();f.setTime(true);
+ const timed={...event,start:new Date(2026,8,25,10,30).toISOString()};
+ assert.equal(await f.service.addTask(timed),true);
+ assert.match(f.contents.get('Today.md'),/^- \[ \] 10:30am Catch up$/m);
+ assert.doesNotMatch(f.contents.get('Today.md'),/simple-meeting:/);
+ f.setTime(false);assert.equal(await f.service.addTask(timed),false);
+ const allDay={...event,title:'Thumbs due',allDay:true};f.setTime(true);
+ assert.equal(await f.service.addTask(allDay),true);
+ assert.match(f.contents.get('Today.md'),/^- \[ \] Thumbs due$/m);
+ assert.doesNotMatch(f.contents.get('Today.md'),/All day|simple-meeting:/);
+ f.contents.set('Today.md',f.contents.get('Today.md').replace('- [ ] Thumbs','- [x] Thumbs'));
+ assert.equal(await f.service.addTask(allDay),false);
 });

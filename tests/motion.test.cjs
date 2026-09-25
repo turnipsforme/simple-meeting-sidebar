@@ -73,7 +73,7 @@ test('exit styles keep the row in flow and compose with vertical movement', t =>
   row.classList.add('is-dismissing');
   const during = dom.window.getComputedStyle(row);
   assert.equal(during.opacity, '0');
-  assert.equal(during.translate, '-8px 0');
+  assert.equal(during.translate, 'none');
   assert.equal(during.transform, 'translateY(20px)', 'closing does not replace the vertical transform');
   assert.equal(during.visibility, 'visible', 'only opacity fades before completion');
   for (const property of ['display', 'height', 'minHeight', 'padding', 'margin']) {
@@ -252,4 +252,26 @@ test('refresh feedback uses no visible label and pulses the handle exactly three
   mountedWhileLoading.update(true, true);
   assert.equal(f.records.length, 2, 'mounting during refresh does not start a new pulse');
   mountedWhileLoading.dispose();
+});
+
+
+test('banner spacing survives the editor changing the container to block layout', t => {
+  const dom = new JSDOM('<body><div class="cm-content"><div class="wcm-notifications"><div class="wcm-notification"></div><div class="wcm-notification"></div></div></div></body>');
+  t.after(() => dom.window.close());
+  const { document } = dom.window;
+  const style = document.createElement('style');
+  style.textContent = readFileSync('styles.css', 'utf8');
+  document.head.append(style);
+  const override = document.createElement('style');
+  override.textContent = '.cm-content .wcm-notifications { display:block !important; }';
+  document.head.append(override);
+  const container = document.querySelector('.wcm-notifications');
+  const second = container.lastElementChild;
+  for (const mobile of [false, true]) {
+    document.body.classList.toggle('is-mobile', mobile);
+    assert.equal(dom.window.getComputedStyle(container).display, 'block');
+    assert.equal(dom.window.getComputedStyle(second).marginBlockStart, 'var(--size-4-2, 8px)');
+  }
+  const rule = [...style.sheet.cssRules].find(rule => rule.selectorText === 'body .wcm-notifications > .wcm-notification + .wcm-notification');
+  assert.equal(rule.style.getPropertyPriority('margin-block-start'), 'important');
 });

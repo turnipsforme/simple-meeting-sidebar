@@ -6,10 +6,14 @@ export function filterCalendarEvents(
   events: readonly CalendarEvent[],
   selectedCalendars: readonly string[] | null,
   onlyMeetingLinkEvents: boolean,
+  ignoreAllDayEvents = false,
+  ignoreRepeatingEvents = false,
 ): CalendarEvent[] {
   const selected = selectedCalendars === null ? null : new Set(selectedCalendars);
   return events.filter((event) =>
     (selected === null || selected.has(event.calendar))
+    && (!ignoreAllDayEvents || !event.allDay)
+    && (!ignoreRepeatingEvents || !event.isRecurring)
     && (!onlyMeetingLinkEvents || (event.hasMeetingLink || event.hasGoogleMeet)));
 }
 

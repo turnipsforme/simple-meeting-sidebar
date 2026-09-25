@@ -60,6 +60,7 @@ export function parseSnapshot(text: string, now = Date.now()): CalendarSnapshot 
       || (value.externalId !== undefined && (typeof value.externalId !== "string" || value.externalId.length > 500))
       || typeof value.title !== "string" || value.title.length > 500
       || typeof value.calendar !== "string" || value.calendar.length > 200
+      || (value.isRecurring !== undefined && typeof value.isRecurring !== "boolean")
       || typeof value.allDay !== "boolean" || typeof value.hasGoogleMeet !== "boolean"
       || (value.hasMeetingLink !== undefined && typeof value.hasMeetingLink !== "boolean")
       || (value.guests !== undefined && (!Array.isArray(value.guests) || value.guests.length > 200

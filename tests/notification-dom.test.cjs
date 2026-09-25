@@ -109,6 +109,7 @@ test('notification containers stay detached until mounted in the editor or readi
   assert.equal(banner.previousElementSibling, sizer);
   assert.deepEqual([...banner.querySelectorAll('button')].map(el => el.dataset.icon), ['list-todo', 'file-plus-2', 'x']);
   assert.equal(banner.querySelectorAll('.wcm-notification-secondary').length, 2);
+  assert.equal(banner.querySelectorAll('button[title]').length, 0, 'only Obsidian aria-label tooltips are present');
   assert.ok(!banner.querySelector('[data-icon=x]').classList.contains('wcm-notification-secondary'));
   assert.equal(banner.querySelector('.wcm-notification-content').textContent, '10:30amMeeting with John');
   assert.equal(banner.querySelector('.wcm-event-title').title, event.title);
@@ -126,7 +127,7 @@ test('notification containers stay detached until mounted in the editor or readi
   });
   editor = new EditorView({ parent: win.document.body, state: EditorState.create({doc:'# Today', extensions:[editorInfoField, notifications.extension, influxField]}) });
   const editorBanner = editor.dom.querySelector('.wcm-notifications');
-  const originalRow = banner.querySelector('.wcm-notification');
+  let originalRow = banner.querySelector('.wcm-notification');
   const originalEditorRow = editorBanner.querySelector('.wcm-notification');
   assert.ok(editorBanner, 'widget creation must not fail inside CodeMirror');
   assert.equal(editor.state.doc.toString(), '# Today', 'notifications never change the note text');
@@ -153,7 +154,28 @@ test('notification containers stay detached until mounted in the editor or readi
   events = [event, second]; subscriber();
   assert.equal(banner.querySelector('.wcm-notification'), originalRow, 'adding a meeting keeps the existing row');
   events = [second, event]; subscriber();
-  assert.equal(banner.lastElementChild, originalRow, 'calendar sorting moves existing rows');
+  assert.equal(banner.firstElementChild, originalRow, 'refreshes keep existing visible slots stable');
+  // Limit both surfaces and fill a removed slot without moving surviving DOM nodes.
+  const third = {...event, key:'3', title:'Third meeting'};
+  const fourth = {...event, key:'4', title:'Fourth meeting'};
+  const fifth = {...event, key:'5', title:'Fifth meeting'};
+  events = [event, second, third, fourth, fifth]; subscriber();
+  assert.equal(banner.querySelectorAll('.wcm-notification').length, 3);
+  assert.equal(editorBanner.querySelectorAll('.wcm-notification').length, 3);
+  assert.equal(banner.querySelector('.wcm-notifications-more').textContent, '+ 2 more');
+  const survivors = [...banner.querySelectorAll('.wcm-notification')].slice(1);
+  event.notificationHidden=true;subscriber();
+  assert.equal(banner.querySelector('.wcm-event-title').textContent, 'Fourth meeting');
+  assert.deepEqual([...banner.querySelectorAll('.wcm-notification')].slice(1), survivors);
+  assert.equal(banner.querySelector('.wcm-notifications-more').textContent, '+ 1 more');
+  busy.add(fourth.key);subscriber();busy.delete(fourth.key);subscriber();
+  assert.equal(banner.querySelector('.wcm-event-title').textContent, 'Fourth meeting', 'busy changes do not reorder slots');
+  second.sidebarHidden=true;subscriber();
+  assert.deepEqual([...banner.querySelectorAll('.wcm-event-title')].map(el=>el.textContent), ['Fourth meeting','Fifth meeting','Third meeting']);
+  assert.equal(banner.querySelector('.wcm-notifications-more'), null);
+  busy.add(fifth.key);subscriber();busy.delete(fifth.key);subscriber();
+  assert.deepEqual([...banner.querySelectorAll('.wcm-event-title')].map(el=>el.textContent), ['Fourth meeting','Fifth meeting','Third meeting']);
+  delete event.notificationHidden;delete second.sidebarHidden;
   events = [event]; subscriber();
   function mockExit(row, properties = ['opacity', 'translate']) {
     const transitions = properties.map(transitionProperty => {
@@ -169,6 +191,7 @@ test('notification containers stay detached until mounted in the editor or readi
     };
     return transitions;
   }
+  originalRow = banner.querySelector('.wcm-notification');
   win.matchMedia = () => ({ matches: false });
   const transitions = mockExit(originalRow);
   originalRow.querySelector('[data-icon=x]').dispatchEvent(new win.MouseEvent('click', { detail: 1 }));
@@ -343,7 +366,7 @@ test('notification containers stay detached until mounted in the editor or readi
   // Check the phone layout rules without driving an app or browser.
   const css=require('node:fs').readFileSync(root+'/styles.css','utf8');
   const style=win.document.createElement('style');
-  style.textContent=css.slice(css.indexOf('/* A single-line heading'));
+  style.textContent=css;
   win.document.head.append(style);win.document.body.classList.add('is-mobile');
   const compact=preview.querySelector('.wcm-notification');
   assert.equal(win.getComputedStyle(compact).padding,'0px');
@@ -351,6 +374,31 @@ test('notification containers stay detached until mounted in the editor or readi
   assert.equal(win.getComputedStyle(compact.querySelector('.wcm-event-title')).whiteSpace,'nowrap');
   assert.equal(win.getComputedStyle(compact.querySelector('.wcm-event-actions')).gridTemplateColumns,'repeat(3, minmax(0, 1fr))');
   assert.equal(win.getComputedStyle(compact.querySelector('button')).height,'44px');
+  assert.equal(win.getComputedStyle(compact.querySelector('button')).width,'100%');
+  // Force the real hover/pressed declarations without operating an app.
+  const pressed=win.document.createElement('style');
+  pressed.textContent=[...style.sheet.cssRules].filter(rule=>rule.selectorText?.includes('.is-mobile') && rule.selectorText.includes('.wcm-action'))
+    .map(rule=>rule.cssText.replaceAll(':hover','').replaceAll(':active','')).join('\n');
+  win.document.head.append(pressed);
+  assert.equal(win.getComputedStyle(compact.querySelector('button')).width,'100%','mobile hit area stays full width while pressed');
+  assert.equal(win.getComputedStyle(compact.querySelector('button')).transform,'none');
+  let escapedTouches=0, tasks=0, meetings=0;
+  editor.dom.addEventListener('touchstart',()=>escapedTouches++);
+  editor.dom.addEventListener('pointerdown',()=>escapedTouches++);
+  plugin.addEventAsTask=async()=>{tasks++;};
+  plugin.createEventMeeting=async()=>{meetings++;};
+  for (const icon of ['list-todo','file-plus-2']) {
+    const button=editor.dom.querySelector(`[data-icon=${icon}]`);
+    for (const type of ['pointerdown','touchstart','pointerup','touchend']) button.dispatchEvent(new win.Event(type,{bubbles:true,cancelable:true}));
+    button.dispatchEvent(new win.MouseEvent('click',{bubbles:true,detail:1}));
+    await new Promise(resolve=>setTimeout(resolve,0));
+  }
+  assert.equal(escapedTouches,0,'editor gestures cannot steal control taps');
+  assert.equal(tasks,1);assert.equal(meetings,1);
+  const close=editor.dom.querySelector('[data-icon=x]');
+  close.dispatchEvent(new win.MouseEvent('click',{bubbles:true,detail:1}));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(event.notificationHidden,true,'mobile close still dismisses');
   view.file.path = 'Other.md'; subscriber();
   assert.equal(preview.querySelector('.wcm-notifications'), null);
 });

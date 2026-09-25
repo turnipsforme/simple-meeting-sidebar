@@ -83,3 +83,14 @@ test("notification dismissal is independent of sidebar hiding and reset by manua
   assert.equal(automatic.sidebarHidden, undefined);
   assert.deepEqual(mergeRefreshedEventState([fresh], [previous], false), [fresh]);
 });
+
+
+test("all-day and repeating filters compose with calendars and meeting links", () => {
+  const allDay = { ...events[0]!, id: "all-day", allDay: true };
+  const recurring = { ...events[0]!, id: "recurring", isRecurring: true };
+  const input = [...events, allDay, recurring];
+  assert.deepEqual(filterCalendarEvents(input, ["Work"], true, true, true).map(e => e.id), ["work-meet"]);
+  assert.equal(filterCalendarEvents(input, null, false, false, false).length, 5);
+  assert.equal(filterCalendarEvents(input, null, false, true, false).length, 4);
+  assert.equal(filterCalendarEvents(input, null, false, false, true).length, 4);
+});

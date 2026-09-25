@@ -203,12 +203,12 @@ test('unload during a snapshot read discards the result and schedules no work',a
   const pending=f.plugin.refreshToday();f.close();finish(snapshot());await pending;assert.equal(f.plugin.snapshot,null);assert.equal(timers.size,0);
 });
 
-test('a failed publication keeps successful desktop data and never emits an automatic notice',async()=>{
+test('a failed publication keeps desktop data and only announces the calendar changes',async()=>{
   const f=fixture({shared:{refreshSchedule:'manual'}});api.Platform.isMacOS=true;api.Platform.isMobile=false;await f.plugin.onload();
   f.plugin.calendarService={fetchRange:async()=>snapshot().events};f.plugin.snapshotStore.publish=async()=>{throw Error('disk busy');};
   const before=api.notices.length;const warn=console.warn;console.warn=()=>{};
   try {await f.plugin.refreshToday();} finally {console.warn=warn;}
-  assert.equal(f.plugin.getTodayEvents().length,1);assert.equal(api.notices.length,before);f.close();
+  assert.equal(f.plugin.getTodayEvents().length,1);assert.equal(api.notices.length,before+1);assert.match(api.notices.at(-1),/1 meeting added or updated/);f.close();
 });
 
 test('changing calendars during an in-flight Mac fetch publishes only the new selection',async()=>{
@@ -273,7 +273,7 @@ test('only upcoming banners appear on their date; start-time expiry leaves sideb
   const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);tomorrow.setHours(10,0,0,0);
   data.events.push({...data.events[0],id:'tomorrow',externalId:'tomorrow',start:tomorrow.toISOString(),end:new Date(+tomorrow+3600000).toISOString()});
   f.put(path,JSON.stringify(data));await f.plugin.refreshToday();
-  assert.equal(f.plugin.getNotificationEvents().length,1);assert.equal(f.plugin.getNotificationEvents(tomorrow)[0].id,'tomorrow');
+  assert.equal(f.plugin.getNotificationEvents().length,1);assert.equal(f.plugin.getNotificationEvents(tomorrow).length,new Date().getHours()<17?0:1);
   const scheduled=timers.get(f.plugin.clockTimer);assert.ok(scheduled.ms<=60_050,'expiry is scheduled at the next start');
   const originalNow=Date.now;Date.now=()=>Date.parse(data.events[0].start);
   try {scheduled.fn();assert.equal(f.plugin.getNotificationEvents().length,0);assert.equal(f.plugin.getTodayEvents().length,1);}
@@ -290,4 +290,51 @@ test('sidebar suppression defaults on for desktop and never hides mobile notific
   f.app.workspace.rightSplit.collapsed=true;assert.equal(f.plugin.shouldHideInlineNotifications(),false);
   f.app.workspace.rightSplit.collapsed=false;f.plugin.settings.notificationsOnlyWhenSidebarHidden=false;
   assert.equal(f.plugin.shouldHideInlineNotifications(),false);f.close();
+});
+
+test('tomorrow inline meetings appear at 5pm without a refresh and stay tied to their note',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date(2026,8,25,16,59)});
+ const f=fixture({shared:{refreshSchedule:'manual'}});api.Platform.isMacOS=true;api.Platform.isMobile=false;
+ await f.plugin.onload();t.after(()=>f.close());
+ const tomorrow=new Date(2026,8,26,10);
+ const data=snapshot();data.events=[{...data.events[0],start:tomorrow.toISOString(),end:new Date(+tomorrow+3600000).toISOString()}];
+ f.plugin.calendarService={fetchRange:async()=>data.events};
+ await f.plugin.refreshToday(true);
+ assert.equal(f.plugin.getNotificationEvents(tomorrow).length,0);
+ const boundary=timers.get(f.plugin.clockTimer);assert.equal(boundary.ms,60_025);
+ t.mock.timers.setTime(new Date(2026,8,25,17).getTime());boundary.fn();
+ assert.equal(f.plugin.getNotificationEvents(tomorrow).length,1);
+ assert.equal(f.plugin.getNotificationEvents().length,0);
+ t.mock.timers.setTime(new Date(2026,8,26,0).getTime());
+ assert.equal(f.plugin.getNotificationEvents().length,1,'tomorrow becomes today at midnight');
+});
+
+test('manual refresh and task buttons are silent; automatic refresh only announces changes',async()=>{
+ const f=fixture({shared:{refreshSchedule:'manual'}});api.Platform.isMacOS=true;api.Platform.isMobile=false;
+ await f.plugin.onload();const data=snapshot();
+ f.plugin.calendarService={fetchRange:async()=>data.events};
+ const before=api.notices.length;
+ await f.plugin.refreshToday(true);assert.equal(api.notices.length,before);
+ await f.plugin.refreshToday(false);assert.equal(api.notices.length,before,'unchanged automatic refresh is silent');
+ data.events[0].title='Changed meeting';await f.plugin.refreshToday(false);
+ assert.equal(api.notices.length,before+1);assert.match(api.notices.at(-1),/1 meeting added or updated/);
+ data.events[0].title='Manually refreshed';await f.plugin.refreshToday(true);assert.equal(api.notices.length,before+1);
+ f.plugin.meetingService={addTask:async()=>true};
+ await f.plugin.addEventAsTask(f.plugin.settings.cachedEvents[0]);assert.equal(api.notices.length,before+1);
+ assert.equal(f.plugin.settings.cachedEvents[0].taskAdded,true);f.close();
+});
+
+test('all-day and recurring filters apply to both mobile surfaces and survive snapshot loading',async()=>{
+ const f=fixture();await f.plugin.onload();const data=snapshot();
+ data.events.push({...data.events[0],id:'day',externalId:'day',allDay:true},
+  {...data.events[0],id:'repeat',externalId:'repeat',isRecurring:true});
+ f.put(path,JSON.stringify(data));await f.plugin.refreshToday();
+ assert.deepEqual(f.plugin.getTodayEvents().map(e=>e.id),['one','repeat']);
+ assert.equal(f.plugin.getNotificationEvents().length,2);
+ f.plugin.settings.ignoreRepeatingEvents=true;
+ assert.deepEqual(f.plugin.getTodayEvents().map(e=>e.id),['one']);
+ assert.equal(f.plugin.getNotificationEvents().length,1);
+ f.plugin.settings.ignoreAllDayEvents=false;
+ assert.deepEqual(f.plugin.getTodayEvents().map(e=>e.id),['day','one']);
+ assert.equal(f.plugin.getNotificationEvents().length,2);f.close();
 });

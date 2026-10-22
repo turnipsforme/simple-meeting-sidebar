@@ -69,12 +69,23 @@ export class SimpleMeetingSidebarSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Inline meetings")
-      .setDesc("Show up to three upcoming meetings above linked mentions. Tomorrow’s meetings appear in tomorrow’s note after 5pm. Banners disappear at the meeting start time. Dismissals sync between devices.")
+      .setDesc("Show up to three upcoming meetings above linked mentions. Tomorrow’s meetings appear in tomorrow’s note after 5pm unless the week ahead is shown. Banners disappear at the meeting start time. Dismissals sync between devices.")
       .addToggle((toggle) => toggle
         .setValue(this.calendarPlugin.settings.meetingNotifications)
         .onChange(async (value) => {
           this.calendarPlugin.settings.meetingNotifications = value;
           this.calendarPlugin.configureNotifications();
+          await this.calendarPlugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName("Show the week ahead")
+      .setDesc("Show meetings for each of the next seven days in that day's daily note at any time, instead of only tomorrow's after 5pm. Uses meetings from the latest refresh; days it doesn't cover stay empty.")
+      .addToggle((toggle) => toggle
+        .setValue(this.calendarPlugin.settings.weekAheadNotifications)
+        .onChange(async (value) => {
+          this.calendarPlugin.settings.weekAheadNotifications = value;
+          this.calendarPlugin.renderViews();
           await this.calendarPlugin.saveSettings();
         }));
 

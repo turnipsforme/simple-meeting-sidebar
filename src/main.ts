@@ -1,7 +1,7 @@
 import type { Extension } from "@codemirror/state";
 import { Notice, Platform, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
 import type { CalendarService } from "./calendar-service";
-import { calendarWindow, coversLocalDate, NOTIFICATION_MAX_AGE_MS, parseSnapshot, SNAPSHOT_PATH, snapshotAllowsNotifications, type CalendarSnapshot } from "./calendar-snapshot";
+import { calendarWindow, coversLocalDate, NOTIFICATION_MAX_AGE_MS, parseSnapshot, SNAPSHOT_PATH, snapshotAllowsNotifications, WEEK_AHEAD_DAYS, type CalendarSnapshot } from "./calendar-snapshot";
 import { DismissalStore, DISMISSALS_PATH } from "./dismissal-store";
 import { SnapshotStore } from "./snapshot-store";
 import { DailyNoteService } from "./daily-note-service";
@@ -20,7 +20,7 @@ import { PeopleIndex } from "./people-index";
 import { automaticRefreshIsDue } from "./schedule";
 import { SimpleMeetingSidebarSettingTab } from "./settings";
 import { loadPluginSettings } from "./settings-state";
-import { localDateKey } from "./utils";
+import { localDateKey, localDayOffset } from "./utils";
 import {
   SIMPLE_MEETING_SIDEBAR_VIEW,
   CalendarEventsModal,
@@ -56,6 +56,7 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
   private animateRefreshStatus = false;
   private lastRefreshError = "";
   private indexedEvents: CalendarEvent[] | null = null;
+  private lastResumeAt = 0;
   private readonly eventsByDate = new Map<string, CalendarEvent[]>();
 
   async onload(): Promise<void> {
@@ -217,9 +218,11 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
 
   getNotificationEvents(date = new Date()): CalendarEvent[] {
     const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(now.getDate() + 1);
-    if (localDateKey(date) === localDateKey(tomorrow) && now.getHours() < 17) return [];
+    const offset = localDayOffset(now, date);
+    // Week ahead: every covered day, always. Otherwise only tomorrow, from 5pm.
+    const weekAhead = this.settings.weekAheadNotifications;
+    if (offset < 0 || offset > (weekAhead ? WEEK_AHEAD_DAYS : 1)) return [];
+    if (offset === 1 && !weekAhead && now.getHours() < 17) return [];
     if (this.isSnapshotReader() && (!snapshotAllowsNotifications(this.snapshot, this.snapshotVerified)
       || !this.calendarSelectionMatches())) return [];
     return this.getEventsForDate(localDateKey(date))
@@ -410,6 +413,10 @@ export default class SimpleMeetingSidebarPlugin extends Plugin implements Simple
 
   private onResume(): void {
     if (this.stopped) return;
+    // One app activation fires both focus and visibilitychange; handle it once.
+    const now = Date.now();
+    if (now - this.lastResumeAt < 1_000) return;
+    this.lastResumeAt = now;
     void this.dismissals.load().then(() => {
       if (this.stopped) return;
       this.dismissals.apply(this.settings.cachedEvents);

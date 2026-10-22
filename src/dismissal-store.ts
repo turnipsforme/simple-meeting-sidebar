@@ -10,13 +10,17 @@ type DismissalKind = "notification" | "sidebar";
 export class DismissalStore {
   private readonly notifications = new Set<string>();
   private readonly sidebar = new Set<string>();
+  // Paths are content-addressed and records immutable: a parsed record never needs rereading.
+  private readonly loaded = new Set<string>();
   constructor(private readonly app: App) {}
 
   async load(): Promise<void> {
     const folder = this.app.vault.getAbstractFileByPath(DISMISSALS_PATH);
-    if (folder instanceof TFolder) {
-      for (const file of folder.children) await this.read(file.path);
-    }
+    if (!(folder instanceof TFolder)) return;
+    // Runs on every window focus, so skip records already read this session.
+    await Promise.all(folder.children
+      .filter((file) => !this.loaded.has(file.path))
+      .map((file) => this.read(file.path)));
   }
 
   async read(path: string): Promise<void> {
@@ -28,6 +32,7 @@ export class DismissalStore {
       if (raw.version !== 1 || typeof raw.identity !== "string" || raw.identity.length > 12_000) return;
       if (raw.kind === "notification") this.notifications.add(raw.identity);
       if (raw.kind === "sidebar") this.sidebar.add(raw.identity);
+      this.loaded.add(path);
     } catch { /* A sync write may not have finished; the next modify event retries it. */ }
   }
 
@@ -49,6 +54,7 @@ export class DismissalStore {
     if (this.app.vault.getAbstractFileByPath(path) instanceof TFile) return;
     try {
       await this.app.vault.create(path, JSON.stringify({ version: 1, identity, kind }));
+      this.loaded.add(path);
     } catch (error) {
       if (!(this.app.vault.getAbstractFileByPath(path) instanceof TFile)) throw error;
     }

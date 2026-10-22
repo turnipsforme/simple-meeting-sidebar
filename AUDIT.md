@@ -34,3 +34,14 @@ Obsidian itself was not controlled or visually inspected. Actual theme layout, s
 The initial footer called `Document.createDiv()`. Obsidian defines this inherited helper on `Node` and appends the new element to its receiver, which produces a `HierarchyRequestError` when the receiver is the document. Both footer paths now use `ownerDocument.createElement("div")` to create detached nodes. CodeMirror mounts the editor widget; the preview renderer explicitly places its footer before Influx. Neither operation writes note text.
 
 The original DOM fixture incorrectly made `Document.createDiv()` return a detached node, masking this failure. The committed regression now follows Obsidian's append behavior, asserts that creating a div directly under the document throws, and exercises both actual notification paths. The corrected simulation failed before the fix and passes after it.
+
+## October 2026 review (0.9.0)
+
+Added the optional week ahead for inline meetings and reviewed the notification, settings, sync and release paths again.
+
+- Notification groups are now built per day and keyed by note path, each with its own date. The reading-mode footer previously inferred the date by assuming any non-today note was tomorrow. Two dates that map to the same note path keep the earliest.
+- `getNotificationEvents` now returns nothing for days outside the allowed range. Before, any date other than tomorrow skipped the 5pm gate. Only tomorrow was requested, so users could not hit this.
+- Dismissal records are immutable and content-addressed. `load()` ran on every window focus and reread every record one at a time. It now reads only records it has not parsed, and reads them in parallel.
+- Focus and visibility events from one app activation are combined, which avoids a duplicate snapshot reload on readers.
+- Release workflow failures for 0.6.0 to 0.7.2 came from creating releases by hand before CI reached `gh release create`. The current workflow skips that step when the release exists.
+- Left as is: snapshot readers still reread and parse `events.json` on resume, so a modify event missed in the background cannot leave stale data. Dismissal records are never pruned, because deleting synced files risks removing another device's dismissal.

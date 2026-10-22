@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  dailyNoteDayLabel,
   findLongestPersonKey,
   formatDailyNoteLinkLabel,
   insertMeetingLinkIntoDailyNote,
   insertTaskIntoDailyNote,
+  localDayOffset,
   nextMeetingBasename,
   normalizePersonText,
   normalizeVaultFolder,
@@ -87,4 +89,16 @@ test("emoji stripping removes standalone and joined emoji without damaging text"
   assert.equal(stripEmojis("🏃 Easy Run ⭐"), "Easy Run");
   assert.equal(stripEmojis("Planning 👩🏽‍💻 with Mía"), "Planning with Mía");
   assert.equal(stripEmojis("Team 1:1 #3"), "Team 1:1 #3");
+});
+
+test("day offsets and action labels follow local calendar days across DST", () => {
+  const now = new Date(2026, 9, 22, 23, 30);
+  assert.equal(localDayOffset(now, new Date(2026, 9, 23, 0, 5)), 1);
+  assert.equal(localDayOffset(now, new Date(2026, 9, 29, 12)), 7);
+  // Spans the end of daylight saving time in Europe and North America.
+  assert.equal(localDayOffset(new Date(2026, 9, 20), new Date(2026, 10, 3)), 14);
+  assert.equal(dailyNoteDayLabel(undefined, now), "today's");
+  assert.equal(dailyNoteDayLabel(new Date(2026, 9, 22, 8), now), "today's");
+  assert.equal(dailyNoteDayLabel(new Date(2026, 9, 23, 8), now), "tomorrow's");
+  assert.equal(dailyNoteDayLabel(new Date(2026, 9, 26, 8), now), "Monday's");
 });

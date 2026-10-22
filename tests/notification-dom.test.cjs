@@ -70,6 +70,12 @@ test('notification containers stay detached until mounted in the editor or readi
   const event = { key: '1', title: 'Meeting with John', start: new Date(2026,8,20,10,30).toISOString(), allDay: false };
   let events = [event];
   let tomorrowEvents = [];
+  let laterEvents = {};
+  const dayOffset = (date) => {
+    const now = new Date();
+    return Math.round((new Date(date.getFullYear(), date.getMonth(), date.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
+  };
+  let pathFor = (date) => ['Today.md', 'Tomorrow.md'][dayOffset(date)] ?? `Day+${dayOffset(date)}.md`;
   let sidebarOpen = false;
   const busy = new Set();
   let pendingSave;
@@ -84,7 +90,7 @@ test('notification containers stay detached until mounted in the editor or readi
     settings: { monochromeNotifications: false },
     app: {workspace: {on() {}, getLeavesOfType() { return [{view}]; }}, vault: { getAbstractFileByPath() { return null; } }},
     shouldHideInlineNotifications() { return sidebarOpen; },
-    getNotificationEvents(date) { return date.toDateString() === new Date().toDateString() ? events : tomorrowEvents; }, getTodayEvents() { return events; },
+    getNotificationEvents(date) { const offset = dayOffset(date); return offset === 0 ? events : offset === 1 ? tomorrowEvents : laterEvents[offset] ?? []; }, getTodayEvents() { return events; },
     getCalendarStatus() { return 'Calendar updated Sep 23, 10:00.'; }, getLastError() { return 'Internal error must not appear on mobile'; },
     isRefreshing() { return false; }, shouldAnimateRefreshStatus() { return false; }, getCachedDate() { return '2026-09-23'; },
     getPillOffset() { return 0; }, async refreshToday() {},
@@ -103,7 +109,7 @@ test('notification containers stay detached until mounted in the editor or readi
     },
     async addEventAsTask() {}, async createEventMeeting() {},
   };
-  notifications = new MeetingNotifications(plugin, { getTodayPath() { return 'Today.md'; }, getPathForDate(date) { return date.toDateString() === new Date().toDateString() ? 'Today.md' : 'Tomorrow.md'; } });
+  notifications = new MeetingNotifications(plugin, { getTodayPath() { return 'Today.md'; }, getPathForDate(date) { return pathFor(date); } });
   notifications.onload();
   let banner = preview.querySelector('.wcm-notifications');
   assert.equal(banner.previousElementSibling, sizer);
@@ -343,6 +349,27 @@ test('notification containers stay detached until mounted in the editor or readi
   assert.equal(editor.dom.querySelector('.wcm-event-title').textContent,'Tomorrow only');
   editor.state.field(editorInfoField).file.path='Other.md';editor.dispatch({});
   assert.equal(editor.dom.querySelector('.wcm-notifications'),null);
+  editor.state.field(editorInfoField).file.path='Today.md';editor.dispatch({});
+
+  // The week ahead pairs each later day's meetings with that day's note and date.
+  laterEvents={3:[{...event,key:'later',title:'Later meeting'}]};
+  subscriber();
+  editor.state.field(editorInfoField).file.path='Day+3.md';editor.dispatch({});
+  assert.equal(editor.dom.querySelector('.wcm-notifications'),null,'later days stay hidden by default');
+  plugin.settings.weekAheadNotifications=true;subscriber();
+  assert.equal(editor.dom.querySelector('.wcm-event-title').textContent,'Later meeting');
+  const later=new Date();later.setDate(later.getDate()+3);
+  const weekday=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][later.getDay()];
+  assert.equal(editor.dom.querySelector('[data-icon=list-todo]').getAttribute('aria-label'),`Add to ${weekday}'s tasks`);
+  editor.dom.querySelector('[data-icon=list-todo]').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(actionDate.toDateString(),later.toDateString(),'later banners act on their own daily note');
+  // Formats without a day map many dates to one note: the earliest day keeps it.
+  pathFor=date=>dayOffset(date)===0?'Today.md':'Tomorrow.md';subscriber();
+  editor.state.field(editorInfoField).file.path='Tomorrow.md';editor.dispatch({});
+  assert.equal(editor.dom.querySelector('.wcm-event-title').textContent,'Tomorrow only');
+  pathFor=date=>['Today.md','Tomorrow.md'][dayOffset(date)]??`Day+${dayOffset(date)}.md`;
+  plugin.settings.weekAheadNotifications=false;laterEvents={};subscriber();
   editor.state.field(editorInfoField).file.path='Today.md';editor.dispatch({});
 
   // Sidebar changes retain the footer during its fade, and interrupt cleanly.

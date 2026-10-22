@@ -5,6 +5,8 @@ export const SNAPSHOT_PATH = "Meetings/_calendar/events.json";
 export const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024;
 export const NOTIFICATION_MAX_AGE_MS = 60 * 60_000;
 const DAY_MS = 24 * 60 * 60_000;
+/** Days after today shown by the week-ahead option; calendarWindow covers all of them. */
+export const WEEK_AHEAD_DAYS = 7;
 
 export interface CalendarSnapshot {
   version: 1;
@@ -23,7 +25,8 @@ export function calendarWindow(now = new Date()): { start: Date; end: Date } {
   start.setHours(0, 0, 0, 0);
   start.setDate(start.getDate() - 1);
   const end = new Date(start);
-  end.setDate(end.getDate() + 9);
+  // Yesterday, today, and the week ahead.
+  end.setDate(end.getDate() + WEEK_AHEAD_DAYS + 2);
   return { start, end };
 }
 

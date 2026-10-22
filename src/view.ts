@@ -1,6 +1,6 @@
 import { ItemView, Modal, Platform, TFile, setIcon, type App, type WorkspaceLeaf } from "obsidian";
 import type { CalendarEvent } from "./models";
-import { formatMeetingTime } from "./utils";
+import { dailyNoteDayLabel, formatMeetingTime } from "./utils";
 import { RefreshStatus } from "./refresh-status";
 import { waitForNotificationExit } from "./notification-motion";
 
@@ -321,7 +321,7 @@ export function renderEventRow(
   for (const type of ["pointerdown", "pointerup", "touchstart", "touchend", "mousedown"]) {
     actions.addEventListener(type, (input) => input.stopPropagation());
   }
-  const taskDay = dailyNoteDate && dailyNoteDate.toDateString() !== new Date().toDateString() ? "tomorrow's" : "today's";
+  const taskDay = dailyNoteDayLabel(dailyNoteDate);
   const taskButton = actions.createEl("button", {
     cls: notification ? "wcm-action wcm-notification-secondary clickable-icon" : "wcm-action",
     text: notification ? "" : "•",

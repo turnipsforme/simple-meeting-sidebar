@@ -104,6 +104,9 @@ test("an incomplete sidebar setup can be retried", () => {
 test("notifications default to neutral colors, migrate the Meet filter, and respect saved choices", () => {
   const defaults = loadPluginSettings({});
   assert.equal(defaults.meetingNotifications, false);
+  assert.equal(defaults.weekAheadNotifications, false);
+  assert.equal(loadPluginSettings({ weekAheadNotifications: true }).weekAheadNotifications, true);
+  assert.equal(loadPluginSettings({ weekAheadNotifications: "yes" }).weekAheadNotifications, false);
   assert.equal(defaults.monochromeNotifications, true);
   assert.equal(loadPluginSettings({ monochromeNotifications: false }).monochromeNotifications, false);
   assert.equal(defaults.includeMeetingTimeInTask, false);

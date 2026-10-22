@@ -2,7 +2,8 @@ import type { CalendarEvent, TextUpdateResult } from "./models";
 
 const HEADING_RE = /^(#{1,6})[ \t]+(.+?)\s*$/;
 const EMOJI_RE = /(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:[\uFE0E\uFE0F])?(?:\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:[\uFE0E\uFE0F])?(?:\p{Emoji_Modifier})?)*)/gu;
-const SHORT_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+const SHORT_WEEKDAYS = WEEKDAYS.map((day) => day.slice(0, 3));
 const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 export function localDateKey(date: Date): string {
@@ -10,6 +11,20 @@ export function localDateKey(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+/** Whole local calendar days from `from` to `to`; rounding absorbs DST-length days. */
+export function localDayOffset(from: Date, to: Date): number {
+  const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000);
+}
+
+/** Possessive day name for daily-note action labels: today's, tomorrow's, Friday's. */
+export function dailyNoteDayLabel(date: Date | undefined, now = new Date()): string {
+  const offset = date ? localDayOffset(now, date) : 0;
+  if (offset === 0 || !date) return "today's";
+  return offset === 1 ? "tomorrow's" : `${WEEKDAYS[date.getDay()]}'s`;
 }
 
 export function formatDailyNoteLinkLabel(date: Date): string {

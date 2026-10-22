@@ -8,7 +8,7 @@ Simple Meeting Sidebar shows today's Apple Calendar events in the right sidebar 
 
 ## Getting started
 
-1. Install and enable **Simple Meeting Sidebar** from Obsidian’s Community plugins. Version 0.8.0 is a stable release; BRAT is not required.
+1. Install and enable **Simple Meeting Sidebar** from Obsidian’s Community plugins. Version 0.9.0 is a stable release; BRAT is not required.
 2. Allow Calendar access when macOS asks. The plugin only reads events and never writes to Apple Calendar.
 3. Open the plugin settings and choose which Apple calendars to include.
 
@@ -26,7 +26,7 @@ Every Mac publishes after a successful calendar refresh. There is no publisher t
 
 Mobile shows an update time and distinguishes an empty day from missing data. Saved meetings remain available when old, but banners appear only after a valid snapshot read, with complete coverage of the phone's current day, matching calendar selection, and a fetch less than one hour old. Invalid, missing, conflicting or older files suppress banners while keeping the last valid sidebar data. The Mac refresh schedule stays unchanged, so a daily schedule gives a limited mobile banner window; choose hourly refresh if you want more frequent updates while a Mac is open. A fresh snapshot still cannot detect a cancellation that has not reached Apple Calendar or vault sync yet.
 
-Mobile reads on startup, snapshot changes, and app resume. It does not poll or contact Apple Calendar. One local timer updates the date at midnight, reveals tomorrow’s meetings at 5pm local time, and removes expired banners. Banners disappear at their scheduled start time; the sidebar keeps the meeting until it is dismissed or used. Freshness labels and reload controls appear only on mobile.
+Mobile reads on startup, snapshot changes, and app resume. It does not poll or contact Apple Calendar. One local timer updates the date at midnight, reveals tomorrow’s meetings at 5pm local time (unless the week ahead is shown), and removes expired banners. Banners disappear at their scheduled start time; the sidebar keeps the meeting until it is dismissed or used. Freshness labels and reload controls appear only on mobile.
 
 Dismissals sync between devices through small vault records. Notes and daily-note tasks sync normally. New meeting notes carry a `simple-meeting-event` property, so other devices can recognise them after syncing, including title changes and separate recurring occurrences. Tasks contain only the title and optional time, without a tracking comment. Existing task comments from beta builds are still recognised to avoid duplicates. Apple's [external calendar identifier](https://developer.apple.com/documentation/eventkit/ekcalendaritem/calendaritemexternalidentifier) is used when available; calendars without a stable external identifier cannot guarantee matching across Macs.
 
@@ -48,9 +48,11 @@ After an action succeeds, the event stays hidden across devices, refreshes, and 
 
 ## Inline meetings
 
-Turn on **Inline meetings** in settings to show upcoming meetings below today's and tomorrow's daily notes in editing and reading modes. Each note shows only its own day's meetings. Tomorrow’s meetings appear in tomorrow’s note from 5pm local time. Tomorrow's banner buttons add tasks and meeting references to tomorrow's note. This is off by default. The plugin follows your Daily Notes or Periodic Notes folder and date format.
+Turn on **Inline meetings** in settings to show upcoming meetings below today's and tomorrow's daily notes in editing and reading modes. Each note shows only its own day's meetings. Tomorrow’s meetings appear in tomorrow’s note from 5pm local time. Banner buttons add tasks and meeting references to the note they appear in. This is off by default.
 
-Each compact banner shows a lighter local meeting time on the left, the title, and line icons to add a task, create a meeting note, or dismiss the notification. On a mouse, the extra actions appear when you move over the controls; they also appear on keyboard focus and stay visible on touch devices. Dismissing a banner leaves its sidebar row available. A sidebar dismissal or successful task/note action hides the meeting in both places. Dismissals sync through small records in `Meetings/_calendar/dismissals/`. They remain hidden after manual refreshes and restarts, and simultaneous offline dismissals can sync without replacing one another. Update all devices to 0.8.0 to share these features.
+Turn on **Show the week ahead** to show meetings in each of the next seven days' daily notes at any time of day, instead of only tomorrow's after 5pm. Each note still shows only its own day's meetings, and its buttons are labelled with that day, such as “Add to Friday's tasks”. It uses the meetings from the latest refresh, which always covers the coming week; days a stale refresh doesn't cover stay empty. With a daily-note format that has no day in it, such as weekly notes, the earliest day keeps the note. The plugin follows your Daily Notes or Periodic Notes folder and date format.
+
+Each compact banner shows a lighter local meeting time on the left, the title, and line icons to add a task, create a meeting note, or dismiss the notification. On a mouse, the extra actions appear when you move over the controls; they also appear on keyboard focus and stay visible on touch devices. Dismissing a banner leaves its sidebar row available. A sidebar dismissal or successful task/note action hides the meeting in both places. Dismissals sync through small records in `Meetings/_calendar/dismissals/`. They remain hidden after manual refreshes and restarts, and simultaneous offline dismissals can sync without replacing one another. Update all devices to 0.8.0 or later to share these features.
 
 The banners sit immediately above Influx's footer, also work without Influx, and never change your daily note's text. Only three banners appear at once, with a muted `+ X more` count underneath. Handling a meeting fills its slot from the queue with a short fade, keeping the other banners in place. When the queue is empty, closing a banner keeps its space until its fade finishes. Influx's optional top-of-page placement stays at the top. Notifications reuse the existing event cache; there is no extra calendar polling.
 
@@ -64,7 +66,7 @@ When there is no queued replacement, the remaining banners settle into place ove
 
 - Include or exclude individual Apple calendars.
 - Show only events containing Google Meet, Zoom, or Microsoft Teams links. Existing Google Meet filter preferences carry over. Refresh after upgrading to detect Zoom and Teams in already-cached events.
-- Enable inline meetings below daily notes.
+- Enable inline meetings below daily notes, optionally for each day of the week ahead.
 - Ignore all-day events, on by default, and optionally ignore repeating events, off by default. Refresh on your Mac after upgrading to identify recurring events in synced snapshots.
 - Optionally include meeting time in newly created tasks, such as `- [ ] 10:30am Meeting with John`. All-day tasks always use just the title. Existing tasks stay unchanged.
 - Choose the meeting-note and people folders.

@@ -309,6 +309,29 @@ test('tomorrow inline meetings appear at 5pm without a refresh and stay tied to 
  assert.equal(f.plugin.getNotificationEvents().length,1,'tomorrow becomes today at midnight');
 });
 
+test('the week ahead shows every covered day at any time; otherwise only tomorrow from 5pm',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date(2026,8,25,9)});
+ const f=fixture({shared:{refreshSchedule:'manual'}});api.Platform.isMacOS=true;api.Platform.isMobile=false;
+ await f.plugin.onload();t.after(()=>f.close());
+ const day=offset=>new Date(2026,8,25+offset,10);
+ const data=snapshot();data.events=[1,2,7].map(offset=>({...data.events[0],id:`d${offset}`,externalId:`d${offset}`,
+  start:day(offset).toISOString(),end:new Date(+day(offset)+3600000).toISOString()}));
+ f.plugin.calendarService={fetchRange:async()=>data.events};
+ await f.plugin.refreshToday(true);
+ const counts=()=>[1,2,7].map(offset=>f.plugin.getNotificationEvents(day(offset)).length);
+ assert.deepEqual(counts(),[0,0,0],'off: nothing ahead before 5pm');
+ f.plugin.settings.weekAheadNotifications=true;
+ assert.deepEqual(counts(),[1,1,1],'on: all seven days ahead, in the morning');
+ f.plugin.settings.weekAheadNotifications=false;
+ t.mock.timers.setTime(new Date(2026,8,25,18).getTime());
+ assert.deepEqual(counts(),[1,0,0],'off: tomorrow only, from 5pm');
+ // A day later without a refresh, the last day of the new week is outside the snapshot.
+ f.plugin.settings.weekAheadNotifications=true;
+ t.mock.timers.setTime(new Date(2026,8,26,9).getTime());
+ assert.equal(f.plugin.hasCoverage(day(8)),false);
+ assert.deepEqual(counts(),[1,1,1],'tomorrow became today; covered later days remain');
+});
+
 test('manual refresh and task buttons are silent; automatic refresh only announces changes',async()=>{
  const f=fixture({shared:{refreshSchedule:'manual'}});api.Platform.isMacOS=true;api.Platform.isMobile=false;
  await f.plugin.onload();const data=snapshot();

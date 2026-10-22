@@ -34,6 +34,7 @@ export interface StoredPluginSettings {
   ignoreAllDayEvents: boolean;
   ignoreRepeatingEvents: boolean;
   meetingNotifications: boolean;
+  weekAheadNotifications: boolean;
   notificationsOnlyWhenSidebarHidden: boolean;
   monochromeNotifications: boolean;
   includeMeetingTimeInTask: boolean;
@@ -57,6 +58,7 @@ export const DEFAULT_SETTINGS: StoredPluginSettings = {
   ignoreAllDayEvents: true,
   ignoreRepeatingEvents: false,
   meetingNotifications: false,
+  weekAheadNotifications: false,
   notificationsOnlyWhenSidebarHidden: true,
   monochromeNotifications: true,
   includeMeetingTimeInTask: false,

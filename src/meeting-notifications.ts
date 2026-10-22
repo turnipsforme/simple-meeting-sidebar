@@ -7,6 +7,8 @@ import type { CalendarEvent } from "./models";
 import { notificationField, refreshNotifications } from "./notification-editor";
 import { renderEventRow } from "./view";
 import { NotificationMotion } from "./notification-motion";
+import { WEEK_AHEAD_DAYS } from "./calendar-snapshot";
+import { dailyNoteDayLabel, localDateKey } from "./utils";
 
 class MeetingWidget extends WidgetType {
   constructor(
@@ -38,6 +40,12 @@ interface PreviewFooter {
   path: string;
 }
 
+interface NotificationGroup {
+  date: Date;
+  path: string;
+  events: CalendarEvent[];
+}
+
 interface NotificationRow {
   signature: string;
   element: HTMLElement;
@@ -49,7 +57,7 @@ export class MeetingNotifications extends Component {
   private readonly editors = new Set<EditorView>();
   private readonly previews = new Map<HTMLElement, PreviewFooter>();
   private readonly widgets = new Map<string, MeetingWidget>();
-  private readonly eventsByPath = new Map<string, CalendarEvent[]>();
+  private readonly groupsByPath = new Map<string, NotificationGroup>();
   private suppressed = false;
   private suppressionComplete = false;
   private suppressionTimer: number | undefined;
@@ -78,7 +86,6 @@ export class MeetingNotifications extends Component {
     this.registerEvent(workspace.on("file-open", () => this.refresh()));
     this.register(this.plugin.subscribe(() => this.refresh()));
     this.refresh();
-
   }
 
   onunload(): void {
@@ -101,24 +108,33 @@ export class MeetingNotifications extends Component {
         this.refresh();
       }, 200);
     }
-    const days = [new Date(), new Date()];
-    days[1]!.setDate(days[0]!.getDate() + 1);
-    const groups = days.map((date) => ({
-      date, path: this.dailyNotes.getPathForDate(date),
-      events: this.suppressionComplete ? [] : this.plugin.getNotificationEvents(date)
-        .filter((event) => !event.notificationHidden && !event.sidebarHidden),
-    }));
+    const groups: NotificationGroup[] = [];
+    const today = new Date();
+    const daysAhead = this.plugin.settings.weekAheadNotifications ? WEEK_AHEAD_DAYS : 1;
+    for (let offset = 0; offset <= daysAhead; offset++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + offset);
+      const path = this.dailyNotes.getPathForDate(date);
+      // A format without a day (weekly notes) maps several dates to one note: keep the earliest.
+      if (groups.some((group) => group.path === path)) continue;
+      groups.push({
+        date, path,
+        events: this.suppressionComplete ? [] : this.plugin.getNotificationEvents(date)
+          .filter((event) => !event.notificationHidden && !event.sidebarHidden),
+      });
+    }
     const signature = JSON.stringify([this.suppressed, this.plugin.settings.monochromeNotifications,
-      groups.map(({path, events}) => ({path, events})), groups.map(({ events }) => events.map((event) => this.plugin.isEventBusy(event.key)))]);
+      groups.map(({ date, path, events }) => ({ day: localDateKey(date), path, events })),
+      groups.map(({ events }) => events.map((event) => this.plugin.isEventBusy(event.key)))]);
     if (signature !== this.signature) {
       this.signature = signature;
       this.widgets.clear();
-      this.eventsByPath.clear();
-      for (const { path, events, date } of groups) {
-        if (!events.length) continue;
-        this.eventsByPath.set(path, events);
-        this.widgets.set(path, new MeetingWidget(
-          (container, view) => this.render(container, events, date, view),
+      this.groupsByPath.clear();
+      for (const group of groups) {
+        if (!group.events.length) continue;
+        this.groupsByPath.set(group.path, group);
+        this.widgets.set(group.path, new MeetingWidget(
+          (container, view) => this.render(container, group.events, group.date, view),
           (container) => this.motion.remove(container),
         ));
       }
@@ -158,8 +174,7 @@ export class MeetingNotifications extends Component {
     }
     let position: ChildNode | null = container.firstChild;
     for (const event of visibleEvents) {
-      const signature = JSON.stringify([event, this.plugin.isEventBusy(event.key),
-        date.toDateString() === new Date().toDateString()]);
+      const signature = JSON.stringify([event, this.plugin.isEventBusy(event.key), dailyNoteDayLabel(date)]);
       const old = previous.get(event.key);
       let element = old?.element;
       // A busy-state render must not replace the row whose exit is still visible
@@ -234,13 +249,11 @@ export class MeetingNotifications extends Component {
     const footer = this.previews.get(preview);
     if (!footer) return;
     const widget = this.widgets.get(footer.path);
-    if (!widget) return;
+    const group = this.groupsByPath.get(footer.path);
+    if (!widget || !group) return;
     if (footer.widget !== widget) {
       // The same renderer is used in reading mode and the editor widget.
-      const events = this.eventsByPath.get(footer.path) ?? [];
-      const date = new Date();
-      if (footer.path !== this.dailyNotes.getTodayPath()) date.setDate(date.getDate() + 1);
-      this.render(footer.root, events, date);
+      this.render(footer.root, group.events, group.date);
       footer.widget = widget;
     }
     const influx = preview.querySelector<HTMLElement>(":scope > .influx-preview-wrapper");

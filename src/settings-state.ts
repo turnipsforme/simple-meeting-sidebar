@@ -29,6 +29,7 @@ export function loadPluginSettings(value: unknown): StoredPluginSettings {
     ignoreAllDayEvents: typeof raw.ignoreAllDayEvents === "boolean" ? raw.ignoreAllDayEvents : true,
     ignoreRepeatingEvents: raw.ignoreRepeatingEvents === true,
     meetingNotifications: raw.meetingNotifications === true,
+    weekAheadNotifications: raw.weekAheadNotifications === true,
     notificationsOnlyWhenSidebarHidden: typeof raw.notificationsOnlyWhenSidebarHidden === "boolean"
       ? raw.notificationsOnlyWhenSidebarHidden : DEFAULT_SETTINGS.notificationsOnlyWhenSidebarHidden,
     monochromeNotifications: typeof raw.monochromeNotifications === "boolean"

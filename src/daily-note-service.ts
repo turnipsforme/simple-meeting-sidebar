@@ -46,8 +46,6 @@ const obsidianMoment = moment as unknown as {
 export class DailyNoteService {
   constructor(private readonly app: App) {}
 
-  getTodayPath(): string { return this.getPathForDate(new Date()); }
-
   getPathForDate(date: Date): string {
     const settings = this.getSettings();
     return this.buildPath(obsidianMoment(date).format(settings.format), settings.folder);
@@ -136,7 +134,7 @@ export class DailyNoteService {
       try {
         return (await periodic.createDailyNote(date.clone())) ?? null;
       } catch (error) {
-        console.warn("Simple Meeting Sidebar: Periodic Notes could not create today's note", error);
+        console.warn("Simple Meeting Sidebar: Periodic Notes could not create the daily note", error);
       }
     }
 
@@ -145,7 +143,7 @@ export class DailyNoteService {
       try {
         return (await core.instance.createDailyNote(date.clone())) ?? null;
       } catch (error) {
-        console.warn("Simple Meeting Sidebar: Daily Notes could not create today's note", error);
+        console.warn("Simple Meeting Sidebar: Daily Notes could not create the daily note", error);
       }
     }
     return null;

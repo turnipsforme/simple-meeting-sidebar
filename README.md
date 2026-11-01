@@ -4,7 +4,7 @@
 
 Simple Meeting Sidebar shows today's Apple Calendar events in the right sidebar and as inline meetings in daily notes. One click adds an event to your daily note as a task or creates a meeting note. To set it up, allow Calendar access on your Mac and pick which calendars to include.
 
-![Sample meetings in the sidebar and a daily note](assets/simple-meeting-sidebar.png)
+![Sample meetings in the sidebar and a daily note](assets/simple-meeting-sidebar.gif)
 
 *Mockup with sample data.*
 

@@ -2,9 +2,11 @@
 
 > **Mac + mobile.** Macs read Apple Calendar and publish a vault snapshot. iPhone, iPad, Android, Windows and Linux read that synced snapshot. Requires Obsidian 1.8.7 or newer.
 
-A simpler, more minimal meetings plugin. There is no setup beyond allowing your Mac's Calendar access and picking which calendars you would like included.
+Simple Meeting Sidebar shows today's Apple Calendar events in the right sidebar and as inline meetings in daily notes. One click adds an event to your daily note as a task or creates a meeting note. To set it up, allow Calendar access on your Mac and pick which calendars to include.
 
-Simple Meeting Sidebar shows today's Apple Calendar events in the right sidebar and as inline meetings in daily notes. With one click, you can add an event to your daily note as a task or create a meeting note.
+![Sample meetings in the sidebar and a daily note](assets/simple-meeting-sidebar.png)
+
+*Mockup with sample data.*
 
 ## Getting started
 

@@ -2,7 +2,7 @@
   "name": "simple-meeting-sidebar",
   "version": "0.9.0",
   "private": true,
-  "description": "Apple Calendar meetings in your sidebar and daily notes, with synced mobile support.",
+  "description": "Apple Calendar meetings in your sidebar and daily notes.",
   "type": "module",
   "scripts": {
     "dev": "node esbuild.config.mjs",
